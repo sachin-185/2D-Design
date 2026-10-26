@@ -52,3 +52,30 @@ def test_room_areas_are_calculated_correctly():
 
     for room in result["rooms"].values():
         assert room["area"] == room["width"] * room["height"]
+
+
+def test_rooms_respect_dimension_limits():
+    result = solve_two_rooms()
+
+    assert result is not None
+
+    dimension_limits = {
+        "Room A": {
+            "min_width": 8,
+            "max_width": 12,
+            "min_height": 6,
+            "max_height": 10,
+        },
+        "Room B": {
+            "min_width": 6,
+            "max_width": 10,
+            "min_height": 6,
+            "max_height": 10,
+        },
+    }
+
+    for name, room in result["rooms"].items():
+        limits = dimension_limits[name]
+
+        assert limits["min_width"] <= room["width"] <= limits["max_width"]
+        assert limits["min_height"] <= room["height"] <= limits["max_height"]
