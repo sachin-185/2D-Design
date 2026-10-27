@@ -111,7 +111,7 @@ def check_feasibility(plot_width, plot_height, room_specs):
 
     return True, "Basic feasibility checks passed."
 
-def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
+def solve_layout(plot_width=20, plot_height=12, room_specs=None):
     # 1. Use the default room specifications or the caller's custom ones.
     if room_specs is None:
         room_specs = DEFAULT_ROOM_SPECS
@@ -125,8 +125,13 @@ def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
     )
 
     if not feasible:
-        print(f"Feasibility check failed: {message}")
-        return None
+        return {
+            "status": "infeasible",
+            "message": message,
+            "plot_width": plot_width,
+            "plot_height": plot_height,
+            "rooms": None,
+        }
 
     # Create the constraint model.
     model = cp_model.CpModel()
@@ -185,8 +190,23 @@ def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
     solver = cp_model.CpSolver()
     status = solver.solve(model)
 
+    if status == cp_model.INFEASIBLE:
+        return {
+            "status": "infeasible",
+            "message": "No arrangement satisfies all geometry constraints.",
+            "plot_width": plot_width,
+            "plot_height": plot_height,
+            "rooms": None,
+        }
+
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return None
+        return {
+            "status": "unknown",
+            "message": "The solver did not find a solution.",
+            "plot_width": plot_width,
+            "plot_height": plot_height,
+            "rooms": None,
+        }
 
     # 6. Return the solution as structured data.
     rooms = {}
@@ -206,6 +226,8 @@ def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
         }
 
     return {
+        "status": "success",
+        "message": "A valid layout was found.",
         "plot_width": plot_width,
         "plot_height": plot_height,
         "rooms": rooms,
@@ -237,18 +259,21 @@ if __name__ == "__main__":
     plot_height = read_positive_integer("Enter plot height (ft): ")
 
     try:
-        result = solve_two_rooms(
+        result = solve_layout(
             plot_width=plot_width,
             plot_height=plot_height,
         )
     except ValueError as error:
         print(f"Invalid input: {error}")
     else:
-        if result is None:
-            print("No valid layout was found.")
+        if result["status"] != "success":
+            print(f"\nStatus: {result['status']}")
+            print(f"Reason: {result['message']}")
         else:
+            print(f"\nStatus: {result['status']}")
+            print(result["message"])
             print(
-                f"\nBuildable area: {result['plot_width']} x "
+                f"Buildable area: {result['plot_width']} x "
                 f"{result['plot_height']} ft"
             )
 
@@ -260,3 +285,4 @@ if __name__ == "__main__":
                     f"{room['height']} ft"
                 )
                 print(f"  Area: {room['area']} sq ft")
+

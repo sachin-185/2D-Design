@@ -1,21 +1,20 @@
 import pytest
 
 from floorplan.geometry import (
-    solve_two_rooms,
+    solve_layout,
     validate_inputs,
     check_feasibility,
 )
 
 def test_solver_finds_a_layout():
-    result = solve_two_rooms()
+    result = solve_layout()
 
-    assert result is not None
-
+    assert result["status"] == "success"
 
 def test_rooms_stay_inside_buildable_area():
-    result = solve_two_rooms()
+    result = solve_layout()
 
-    assert result is not None
+    assert result["status"] == "success"
 
     plot_width = result["plot_width"]
     plot_height = result["plot_height"]
@@ -28,9 +27,9 @@ def test_rooms_stay_inside_buildable_area():
 
 
 def test_rooms_do_not_overlap():
-    result = solve_two_rooms()
+    result = solve_layout()
 
-    assert result is not None
+    assert result["status"] == "success"
 
     rooms = list(result["rooms"].values())
 
@@ -50,18 +49,18 @@ def test_rooms_do_not_overlap():
 
 
 def test_room_areas_are_calculated_correctly():
-    result = solve_two_rooms()
+    result = solve_layout()
 
-    assert result is not None
+    assert result["status"] == "success"
 
     for room in result["rooms"].values():
         assert room["area"] == room["width"] * room["height"]
 
 
 def test_rooms_respect_dimension_limits():
-    result = solve_two_rooms()
+    result = solve_layout()
 
-    assert result is not None
+    assert result["status"] == "success"
 
     dimension_limits = {
         "Room A": {
@@ -86,9 +85,9 @@ def test_rooms_respect_dimension_limits():
 
 
 def test_solver_accepts_custom_plot_dimensions():
-    result = solve_two_rooms(plot_width=24, plot_height=14)
+    result = solve_layout(plot_width=24, plot_height=14)
 
-    assert result is not None
+    assert result["status"] == "success"
     assert result["plot_width"] == 24
     assert result["plot_height"] == 14
 
@@ -107,13 +106,13 @@ def test_solver_accepts_custom_room_specs():
         }
     }
 
-    result = solve_two_rooms(
+    result = solve_layout(
         plot_width=10,
         plot_height=10,
         room_specs=custom_rooms,
     )
 
-    assert result is not None
+    assert result["status"] == "success"
     assert set(result["rooms"].keys()) == {"Kitchen"}
 
     kitchen = result["rooms"]["Kitchen"]
@@ -196,3 +195,32 @@ def test_feasibility_accepts_basic_valid_example():
 
     assert feasible is True
     assert message == "Basic feasibility checks passed."
+
+
+def test_successful_result_has_status_and_message():
+    result = solve_layout()
+
+    assert result["status"] == "success"
+    assert result["message"] == "A valid layout was found."
+    assert result["rooms"] is not None
+
+
+def test_infeasible_request_returns_explanation():
+    impossible_rooms = {
+        "Bedroom": {
+            "min_width": 15,
+            "max_width": 18,
+            "min_height": 8,
+            "max_height": 10,
+        }
+    }
+
+    result = solve_layout(
+        plot_width=10,
+        plot_height=20,
+        room_specs=impossible_rooms,
+    )
+
+    assert result["status"] == "infeasible"
+    assert "minimum width" in result["message"]
+    assert result["rooms"] is None
