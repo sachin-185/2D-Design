@@ -1,7 +1,10 @@
 import pytest
 
-from floorplan.geometry import solve_two_rooms, validate_inputs
-
+from floorplan.geometry import (
+    solve_two_rooms,
+    validate_inputs,
+    check_feasibility,
+)
 
 def test_solver_finds_a_layout():
     result = solve_two_rooms()
@@ -155,3 +158,41 @@ def test_rejects_minimum_greater_than_maximum():
                 "max_height": 10,
             }
         })
+
+
+def test_feasibility_rejects_room_wider_than_plot():
+    rooms = {
+        "Bedroom": {
+            "min_width": 15,
+            "max_width": 18,
+            "min_height": 8,
+            "max_height": 10,
+        }
+    }
+
+    feasible, message = check_feasibility(10, 20, rooms)
+
+    assert feasible is False
+    assert "minimum width" in message
+
+
+def test_feasibility_accepts_basic_valid_example():
+    rooms = {
+        "Room A": {
+            "min_width": 8,
+            "max_width": 12,
+            "min_height": 6,
+            "max_height": 10,
+        },
+        "Room B": {
+            "min_width": 6,
+            "max_width": 10,
+            "min_height": 6,
+            "max_height": 10,
+        },
+    }
+
+    feasible, message = check_feasibility(20, 12, rooms)
+
+    assert feasible is True
+    assert message == "Basic feasibility checks passed."

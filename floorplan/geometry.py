@@ -70,6 +70,47 @@ def validate_inputs(plot_width, plot_height, room_specs):
                 f"{name}: minimum height cannot exceed maximum height."
             )
 
+
+def check_feasibility(plot_width, plot_height, room_specs):
+    """Detect basic reasons why rooms cannot fit in the plot."""
+
+    plot_area = plot_width * plot_height
+
+    minimum_required_area = 0
+
+    for name, spec in room_specs.items():
+        # A room's minimum dimensions must fit along each plot axis.
+        if spec["min_width"] > plot_width:
+            return (
+                False,
+                f"{name} requires a minimum width of "
+                f"{spec['min_width']} ft, but the plot is only "
+                f"{plot_width} ft wide.",
+            )
+
+        if spec["min_height"] > plot_height:
+            return (
+                False,
+                f"{name} requires a minimum height of "
+                f"{spec['min_height']} ft, but the plot is only "
+                f"{plot_height} ft deep.",
+            )
+
+        # Add the smallest possible area of this room.
+        minimum_required_area += (
+            spec["min_width"] * spec["min_height"]
+        )
+
+    # Non-overlapping rooms cannot occupy more area than the plot.
+    if minimum_required_area > plot_area:
+        return (
+            False,
+            f"Rooms require at least {minimum_required_area} sq ft, "
+            f"but the plot has only {plot_area} sq ft.",
+        )
+
+    return True, "Basic feasibility checks passed."
+
 def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
     # 1. Use the default room specifications or the caller's custom ones.
     if room_specs is None:
@@ -77,6 +118,15 @@ def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
 
     # Validate inputs before creating the solver model.
     validate_inputs(plot_width, plot_height, room_specs)
+
+    # Check whether the request is obviously impossible.
+    feasible, message = check_feasibility(
+        plot_width, plot_height, room_specs
+    )
+
+    if not feasible:
+        print(f"Feasibility check failed: {message}")
+        return None
 
     # Create the constraint model.
     model = cp_model.CpModel()
