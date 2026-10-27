@@ -79,3 +79,42 @@ def test_rooms_respect_dimension_limits():
 
         assert limits["min_width"] <= room["width"] <= limits["max_width"]
         assert limits["min_height"] <= room["height"] <= limits["max_height"]
+
+
+def test_solver_accepts_custom_plot_dimensions():
+    result = solve_two_rooms(plot_width=24, plot_height=14)
+
+    assert result is not None
+    assert result["plot_width"] == 24
+    assert result["plot_height"] == 14
+
+    for room in result["rooms"].values():
+        assert room["x"] + room["width"] <= 24
+        assert room["y"] + room["height"] <= 14
+
+
+def test_solver_accepts_custom_room_specs():
+    custom_rooms = {
+        "Kitchen": {
+            "min_width": 5,
+            "max_width": 8,
+            "min_height": 6,
+            "max_height": 9,
+        }
+    }
+
+    result = solve_two_rooms(
+        plot_width=10,
+        plot_height=10,
+        room_specs=custom_rooms,
+    )
+
+    assert result is not None
+    assert set(result["rooms"].keys()) == {"Kitchen"}
+
+    kitchen = result["rooms"]["Kitchen"]
+
+    assert 5 <= kitchen["width"] <= 8
+    assert 6 <= kitchen["height"] <= 9
+    assert kitchen["x"] + kitchen["width"] <= 10
+    assert kitchen["y"] + kitchen["height"] <= 10

@@ -1,28 +1,30 @@
+
 from ortools.sat.python import cp_model
 
 
-def solve_two_rooms():
-    # 1. Define the buildable area in feet.
-    plot_width = 20
-    plot_height = 12
+# Default room specifications used when no custom specifications are supplied.
+DEFAULT_ROOM_SPECS = {
+    "Room A": {
+        "min_width": 8,
+        "max_width": 12,
+        "min_height": 6,
+        "max_height": 10,
+    },
+    "Room B": {
+        "min_width": 6,
+        "max_width": 10,
+        "min_height": 6,
+        "max_height": 10,
+    },
+}
 
-    # 2. Define allowed dimensions for each room.
-    room_specs = {
-        "Room A": {
-            "min_width": 8,
-            "max_width": 12,
-            "min_height": 6,
-            "max_height": 10,
-        },
-        "Room B": {
-            "min_width": 6,
-            "max_width": 10,
-            "min_height": 6,
-            "max_height": 10,
-        },
-    }
 
-    # 3. Create the constraint model.
+def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
+    # 1. Use the default room specifications or the caller's custom ones.
+    if room_specs is None:
+        room_specs = DEFAULT_ROOM_SPECS
+
+    # 2. Create the constraint model.
     model = cp_model.CpModel()
 
     x_vars = {}
@@ -33,7 +35,7 @@ def solve_two_rooms():
     x_intervals = []
     y_intervals = []
 
-    # 4. Create variables and constraints for each room.
+    # 3. Create variables and constraints for every room.
     for name, spec in room_specs.items():
         x = model.new_int_var(0, plot_width, f"{name}_x")
         y = model.new_int_var(0, plot_height, f"{name}_y")
@@ -45,11 +47,11 @@ def solve_two_rooms():
             spec["min_height"], spec["max_height"], f"{name}_height"
         )
 
-        # Keep each room inside the buildable area.
+        # Each room must remain inside the buildable area.
         model.add(x + width <= plot_width)
         model.add(y + height <= plot_height)
 
-        # Define explicit end coordinates.
+        # Define the ending coordinates of the room.
         x_end = model.new_int_var(0, plot_width, f"{name}_x_end")
         y_end = model.new_int_var(0, plot_height, f"{name}_y_end")
 
@@ -72,17 +74,17 @@ def solve_two_rooms():
         x_intervals.append(x_interval)
         y_intervals.append(y_interval)
 
-    # 5. Prevent rooms from overlapping.
+    # 4. Prevent rooms from overlapping.
     model.add_no_overlap_2d(x_intervals, y_intervals)
 
-    # 6. Solve the model.
+    # 5. Find a valid arrangement.
     solver = cp_model.CpSolver()
     status = solver.solve(model)
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
 
-    # 7. Return structured layout data instead of printing it.
+    # 6. Return the solution as structured data.
     rooms = {}
 
     for name in room_specs:
@@ -106,23 +108,31 @@ def solve_two_rooms():
     }
 
 
+
 if __name__ == "__main__":
-    result = solve_two_rooms()
+    print("=== Two-Room Floor Plan Solver ===")
+
+    plot_width = int(input("Enter plot width (ft): "))
+    plot_height = int(input("Enter plot height (ft): "))
+
+    result = solve_two_rooms(
+        plot_width=plot_width,
+        plot_height=plot_height,
+    )
 
     if result is None:
-        print("No valid arrangement was found.")
+        print("No valid layout was found.")
     else:
-        print("A valid floor layout was found!")
         print(
-            f"Buildable area: {result['plot_width']} ft "
-            f"x {result['plot_height']} ft\n"
+            f"\nBuildable area: {result['plot_width']} x "
+            f"{result['plot_height']} ft"
         )
 
         for name, room in result["rooms"].items():
-            print(f"{name}:")
-            print(f"  Position: x={room['x']}, y={room['y']}")
+            print(f"\n{name}:")
+            print(f"  Position: ({room['x']}, {room['y']})")
             print(
-                f"  Dimensions: {room['width']} ft "
-                f"x {room['height']} ft"
+                f"  Dimensions: {room['width']} x "
+                f"{room['height']} ft"
             )
-            print(f"  Area: {room['area']} sq ft\n")
+            print(f"  Area: {room['area']} sq ft")
