@@ -1,4 +1,3 @@
-
 from ortools.sat.python import cp_model
 
 
@@ -111,29 +110,133 @@ def check_feasibility(plot_width, plot_height, room_specs):
 
     return True, "Basic feasibility checks passed."
 
-def solve_layout(plot_width=20, plot_height=12, room_specs=None):
-    # 1. Use the default room specifications or the caller's custom ones.
+
+def calculate_buildable_area(plot_width, plot_height, setbacks):
+    """Calculate the rectangular buildable area after setbacks."""
+
+    # 1. Validate the plot dimensions.
+    if type(plot_width) is not int or plot_width <= 0:
+        raise ValueError("Plot width must be a positive integer.")
+
+    if type(plot_height) is not int or plot_height <= 0:
+        raise ValueError("Plot height must be a positive integer.")
+
+    # 2. Validate the setbacks dictionary.
+    required_setbacks = {"left", "right", "front", "back"}
+
+    if (
+        not isinstance(setbacks, dict)
+        or set(setbacks.keys()) != required_setbacks
+    ):
+        raise ValueError(
+            "Setbacks must contain exactly: left, right, front, and back."
+        )
+
+    # 3. Every setback must be a non-negative integer.
+    for side, value in setbacks.items():
+        if type(value) is not int or value < 0:
+            raise ValueError(
+                f"The {side} setback must be a non-negative integer."
+            )
+
+    # 4. Extract the validated values.
+    left = setbacks["left"]
+    right = setbacks["right"]
+    front = setbacks["front"]
+    back = setbacks["back"]
+
+    # 5. Calculate the remaining buildable dimensions.
+    buildable_width = plot_width - left - right
+    buildable_depth = plot_height - front - back
+
+    # 6. Reject setbacks that eliminate the buildable area.
+    if buildable_width <= 0 or buildable_depth <= 0:
+        raise ValueError(
+            "Setbacks leave no positive buildable area. "
+            "Reduce the setbacks or increase the plot dimensions."
+        )
+
+    # 7. Return dimensions and the buildable area's origin.
+    return {
+        "width": buildable_width,
+        "depth": buildable_depth,
+        "offset_x": left,
+        "offset_y": front,
+    }
+
+
+def solve_layout(
+    plot_width=20,
+    plot_height=12,
+    room_specs=None,
+    setbacks=None,
+):
+    # 1. Set default room specifications.
     if room_specs is None:
         room_specs = DEFAULT_ROOM_SPECS
 
-    # Validate inputs before creating the solver model.
+    # 2. Set default setbacks to zero.
+    if setbacks is None:
+        setbacks = {
+            "left": 0,
+            "right": 0,
+            "front": 0,
+            "back": 0,
+        }
+
+    # 3. Validate plot dimensions and room specifications.
     validate_inputs(plot_width, plot_height, room_specs)
 
-    # Check whether the request is obviously impossible.
-    feasible, message = check_feasibility(
-        plot_width, plot_height, room_specs
+    # 4. Validate the setback inputs.
+    required_setbacks = {"left", "right", "front", "back"}
+
+    if (
+        not isinstance(setbacks, dict)
+        or set(setbacks.keys()) != required_setbacks
+    ):
+        raise ValueError(
+            "Setbacks must contain exactly: left, right, front, and back."
+        )
+
+    for side, value in setbacks.items():
+        if type(value) is not int or value < 0:
+            raise ValueError(
+                f"The {side} setback must be a non-negative integer."
+            )
+
+    # 5. Calculate the area available for room placement.
+    buildable = calculate_buildable_area(
+        plot_width, plot_height, setbacks
     )
+
+    buildable_width = buildable["width"]
+    buildable_depth = buildable["depth"]
+
+    # 6. Check feasibility against the buildable area.
+    feasible, message = check_feasibility(
+        buildable_width, buildable_depth, room_specs
+    )
+
+    # Shared information included in every solver result.
+    result_info = {
+        "plot_width": plot_width,
+        "plot_height": plot_height,
+        "buildable_width": buildable_width,
+        "buildable_depth": buildable_depth,
+        "setbacks": setbacks,
+        "buildable_offset_x": buildable["offset_x"],
+        "buildable_offset_y": buildable["offset_y"],
+    }
 
     if not feasible:
         return {
+            **result_info,
             "status": "infeasible",
             "message": message,
-            "plot_width": plot_width,
-            "plot_height": plot_height,
             "rooms": None,
         }
 
-    # Create the constraint model.
+    # 7. Create the OR-Tools constraint model.
     model = cp_model.CpModel()
 
     x_vars = {}
@@ -144,25 +247,37 @@ def solve_layout(plot_width=20, plot_height=12, room_specs=None):
     x_intervals = []
     y_intervals = []
 
-    # 3. Create variables and constraints for every room.
+    # 8. Create position, dimension, and boundary constraints.
     for name, spec in room_specs.items():
-        x = model.new_int_var(0, plot_width, f"{name}_x")
-        y = model.new_int_var(0, plot_height, f"{name}_y")
+        x = model.new_int_var(
+            0, buildable_width, f"{name}_x"
+        )
+        y = model.new_int_var(
+            0, buildable_depth, f"{name}_y"
+        )
 
         width = model.new_int_var(
-            spec["min_width"], spec["max_width"], f"{name}_width"
+            spec["min_width"],
+            spec["max_width"],
+            f"{name}_width",
         )
         height = model.new_int_var(
-            spec["min_height"], spec["max_height"], f"{name}_height"
+            spec["min_height"],
+            spec["max_height"],
+            f"{name}_height",
         )
 
-        # Each room must remain inside the buildable area.
-        model.add(x + width <= plot_width)
-        model.add(y + height <= plot_height)
+        # Keep the room inside the buildable rectangle.
+        model.add(x + width <= buildable_width)
+        model.add(y + height <= buildable_depth)
 
-        # Define the ending coordinates of the room.
-        x_end = model.new_int_var(0, plot_width, f"{name}_x_end")
-        y_end = model.new_int_var(0, plot_height, f"{name}_y_end")
+        # Calculate the room's right and top edges.
+        x_end = model.new_int_var(
+            0, buildable_width, f"{name}_x_end"
+        )
+        y_end = model.new_int_var(
+            0, buildable_depth, f"{name}_y_end"
+        )
 
         model.add(x_end == x + width)
         model.add(y_end == y + height)
@@ -183,32 +298,32 @@ def solve_layout(plot_width=20, plot_height=12, room_specs=None):
         x_intervals.append(x_interval)
         y_intervals.append(y_interval)
 
-    # 4. Prevent rooms from overlapping.
+    # 9. Prevent rooms from overlapping.
     model.add_no_overlap_2d(x_intervals, y_intervals)
 
-    # 5. Find a valid arrangement.
+    # 10. Solve the model.
     solver = cp_model.CpSolver()
     status = solver.solve(model)
 
     if status == cp_model.INFEASIBLE:
         return {
+            **result_info,
             "status": "infeasible",
-            "message": "No arrangement satisfies all geometry constraints.",
-            "plot_width": plot_width,
-            "plot_height": plot_height,
+            "message": (
+                "No arrangement satisfies all geometry constraints."
+            ),
             "rooms": None,
         }
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return {
+            **result_info,
             "status": "unknown",
             "message": "The solver did not find a solution.",
-            "plot_width": plot_width,
-            "plot_height": plot_height,
             "rooms": None,
         }
 
-    # 6. Return the solution as structured data.
+    # 11. Extract the solution as structured data.
     rooms = {}
 
     for name in room_specs:
@@ -226,10 +341,9 @@ def solve_layout(plot_width=20, plot_height=12, room_specs=None):
         }
 
     return {
+        **result_info,
         "status": "success",
         "message": "A valid layout was found.",
-        "plot_width": plot_width,
-        "plot_height": plot_height,
         "rooms": rooms,
     }
 

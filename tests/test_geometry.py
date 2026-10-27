@@ -4,6 +4,7 @@ from floorplan.geometry import (
     solve_layout,
     validate_inputs,
     check_feasibility,
+    calculate_buildable_area,
 )
 
 def test_solver_finds_a_layout():
@@ -223,4 +224,234 @@ def test_infeasible_request_returns_explanation():
 
     assert result["status"] == "infeasible"
     assert "minimum width" in result["message"]
+    assert result["rooms"] is None
+
+
+def test_calculates_buildable_area_after_setbacks():
+    setbacks = {
+        "left": 3,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    result = calculate_buildable_area(30, 40, setbacks)
+
+    assert result["width"] == 24
+    assert result["depth"] == 32
+    assert result["offset_x"] == 3
+    assert result["offset_y"] == 5
+
+
+def test_rejects_setbacks_that_leave_no_buildable_area():
+    setbacks = {
+        "left": 10,
+        "right": 10,
+        "front": 2,
+        "back": 2,
+    }
+
+    with pytest.raises(ValueError, match="no positive buildable area"):
+        calculate_buildable_area(20, 30, setbacks)
+
+
+def test_solver_places_rooms_inside_buildable_area():
+    setbacks = {
+        "left": 3,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    result = solve_layout(
+        plot_width=30,
+        plot_height=40,
+        setbacks=setbacks,
+    )
+
+    assert result["status"] == "success"
+    assert result["buildable_width"] == 24
+    assert result["buildable_depth"] == 32
+
+    for room in result["rooms"].values():
+        assert room["x"] >= 0
+        assert room["y"] >= 0
+        assert room["x"] + room["width"] <= 24
+        assert room["y"] + room["height"] <= 32
+
+def test_rejects_missing_setback_key():
+    setbacks = {
+        "left": 3,
+        "right": 3,
+        "front": 5,
+    }
+
+    with pytest.raises(ValueError, match="exactly"):
+        solve_layout(setbacks=setbacks)
+
+
+def test_rejects_negative_setback():
+    setbacks = {
+        "left": -1,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    with pytest.raises(ValueError, match="non-negative integer"):
+        solve_layout(setbacks=setbacks)
+
+
+def test_rejects_non_integer_setback():
+    setbacks = {
+        "left": 3.5,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    with pytest.raises(ValueError, match="non-negative integer"):
+        solve_layout(setbacks=setbacks)
+
+def test_room_coordinates_can_be_translated_to_original_plot():
+    setbacks = {
+        "left": 3,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    result = solve_layout(
+        plot_width=30,
+        plot_height=40,
+        setbacks=setbacks,
+    )
+
+    assert result["status"] == "success"
+
+    for room in result["rooms"].values():
+        original_x = room["x"] + result["buildable_offset_x"]
+        original_y = room["y"] + result["buildable_offset_y"]
+
+        assert original_x >= 3
+        assert original_y >= 5
+        assert original_x + room["width"] <= 30 - 3
+        assert original_y + room["height"] <= 40 - 3
+
+
+def test_solver_rejects_missing_setback_key():
+    setbacks = {
+        "left": 3,
+        "right": 3,
+        "front": 5,
+    }
+
+    with pytest.raises(ValueError, match="exactly"):
+        solve_layout(setbacks=setbacks)
+
+
+def test_solver_rejects_negative_setback():
+    setbacks = {
+        "left": -1,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    with pytest.raises(ValueError, match="non-negative integer"):
+        solve_layout(setbacks=setbacks)
+
+
+def test_solver_rejects_non_integer_setback():
+    setbacks = {
+        "left": 3.5,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    with pytest.raises(ValueError, match="non-negative integer"):
+        solve_layout(setbacks=setbacks)
+
+
+def test_rooms_respect_setbacks_in_original_plot():
+    setbacks = {
+        "left": 3,
+        "right": 3,
+        "front": 5,
+        "back": 3,
+    }
+
+    result = solve_layout(
+        plot_width=30,
+        plot_height=40,
+        setbacks=setbacks,
+    )
+
+    assert result["status"] == "success"
+
+    # Confirm that the buildable area begins at the expected offsets.
+    assert result["buildable_offset_x"] == 3
+    assert result["buildable_offset_y"] == 5
+
+    for room in result["rooms"].values():
+        # Convert buildable-area coordinates to original-plot coordinates.
+        original_x = room["x"] + result["buildable_offset_x"]
+        original_y = room["y"] + result["buildable_offset_y"]
+
+        # The room must remain within all four setback boundaries.
+        assert original_x >= 3
+        assert original_y >= 5
+        assert original_x + room["width"] <= 30 - 3
+        assert original_y + room["height"] <= 40 - 3
+
+def test_room_can_exactly_fit_buildable_area():
+    room_specs = {
+        "Small Room": {
+            "min_width": 8,
+            "max_width": 8,
+            "min_height": 6,
+            "max_height": 6,
+        }
+    }
+
+    result = solve_layout(
+        plot_width=8,
+        plot_height=6,
+        room_specs=room_specs,
+    )
+
+    assert result["status"] == "success"
+
+    room = result["rooms"]["Small Room"]
+    assert room["x"] == 0
+    assert room["y"] == 0
+    assert room["width"] == 8
+    assert room["height"] == 6
+
+def test_solver_rejects_room_that_cannot_fit_after_setbacks():
+    room_specs = {
+        "Bedroom": {
+            "min_width": 8,
+            "max_width": 10,
+            "min_height": 6,
+            "max_height": 8,
+        }
+    }
+
+    setbacks = {
+        "left": 2,
+        "right": 2,
+        "front": 1,
+        "back": 1,
+    }
+
+    result = solve_layout(
+        plot_width=11,
+        plot_height=10,
+        room_specs=room_specs,
+        setbacks=setbacks,
+    )
+
+    assert result["status"] == "infeasible"
     assert result["rooms"] is None
