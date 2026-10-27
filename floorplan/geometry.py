@@ -19,12 +19,66 @@ DEFAULT_ROOM_SPECS = {
 }
 
 
+def validate_inputs(plot_width, plot_height, room_specs):
+    """Validate plot dimensions and room dimension specifications."""
+
+    # Plot dimensions must be positive integers.
+    if type(plot_width) is not int or plot_width <= 0:
+        raise ValueError("Plot width must be a positive integer.")
+
+    if type(plot_height) is not int or plot_height <= 0:
+        raise ValueError("Plot height must be a positive integer.")
+
+    # At least one room must be provided.
+    if not isinstance(room_specs, dict) or not room_specs:
+        raise ValueError("At least one room specification is required.")
+
+    required_keys = {
+        "min_width",
+        "max_width",
+        "min_height",
+        "max_height",
+    }
+
+    for name, spec in room_specs.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Every room must have a non-empty name.")
+
+        if not isinstance(spec, dict):
+            raise ValueError(f"Specifications for {name} must be a dictionary.")
+
+        if not required_keys.issubset(spec):
+            raise ValueError(
+                f"{name} must define minimum and maximum width and height."
+            )
+
+        for key in required_keys:
+            value = spec[key]
+
+            if type(value) is not int or value <= 0:
+                raise ValueError(
+                    f"{name}: {key} must be a positive integer."
+                )
+
+        if spec["min_width"] > spec["max_width"]:
+            raise ValueError(
+                f"{name}: minimum width cannot exceed maximum width."
+            )
+
+        if spec["min_height"] > spec["max_height"]:
+            raise ValueError(
+                f"{name}: minimum height cannot exceed maximum height."
+            )
+
 def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
     # 1. Use the default room specifications or the caller's custom ones.
     if room_specs is None:
         room_specs = DEFAULT_ROOM_SPECS
 
-    # 2. Create the constraint model.
+    # Validate inputs before creating the solver model.
+    validate_inputs(plot_width, plot_height, room_specs)
+
+    # Create the constraint model.
     model = cp_model.CpModel()
 
     x_vars = {}
@@ -108,31 +162,51 @@ def solve_two_rooms(plot_width=20, plot_height=12, room_specs=None):
     }
 
 
+def read_positive_integer(prompt):
+    """Read a positive integer from the terminal."""
+    while True:
+        raw_value = input(prompt)
+
+        try:
+            value = int(raw_value)
+        except ValueError:
+            print("Please enter a whole number, such as 20.")
+            continue
+
+        if value <= 0:
+            print("The value must be greater than zero.")
+            continue
+
+        return value
+
 
 if __name__ == "__main__":
     print("=== Two-Room Floor Plan Solver ===")
 
-    plot_width = int(input("Enter plot width (ft): "))
-    plot_height = int(input("Enter plot height (ft): "))
+    plot_width = read_positive_integer("Enter plot width (ft): ")
+    plot_height = read_positive_integer("Enter plot height (ft): ")
 
-    result = solve_two_rooms(
-        plot_width=plot_width,
-        plot_height=plot_height,
-    )
-
-    if result is None:
-        print("No valid layout was found.")
-    else:
-        print(
-            f"\nBuildable area: {result['plot_width']} x "
-            f"{result['plot_height']} ft"
+    try:
+        result = solve_two_rooms(
+            plot_width=plot_width,
+            plot_height=plot_height,
         )
-
-        for name, room in result["rooms"].items():
-            print(f"\n{name}:")
-            print(f"  Position: ({room['x']}, {room['y']})")
+    except ValueError as error:
+        print(f"Invalid input: {error}")
+    else:
+        if result is None:
+            print("No valid layout was found.")
+        else:
             print(
-                f"  Dimensions: {room['width']} x "
-                f"{room['height']} ft"
+                f"\nBuildable area: {result['plot_width']} x "
+                f"{result['plot_height']} ft"
             )
-            print(f"  Area: {room['area']} sq ft")
+
+            for name, room in result["rooms"].items():
+                print(f"\n{name}:")
+                print(f"  Position: ({room['x']}, {room['y']})")
+                print(
+                    f"  Dimensions: {room['width']} x "
+                    f"{room['height']} ft"
+                )
+                print(f"  Area: {room['area']} sq ft")

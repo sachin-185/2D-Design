@@ -1,5 +1,6 @@
+import pytest
 
-from floorplan.geometry import solve_two_rooms
+from floorplan.geometry import solve_two_rooms, validate_inputs
 
 
 def test_solver_finds_a_layout():
@@ -118,3 +119,39 @@ def test_solver_accepts_custom_room_specs():
     assert 6 <= kitchen["height"] <= 9
     assert kitchen["x"] + kitchen["width"] <= 10
     assert kitchen["y"] + kitchen["height"] <= 10
+    
+
+def test_rejects_zero_plot_width():
+    with pytest.raises(ValueError, match="Plot width"):
+        validate_inputs(0, 12, {
+            "Room A": {
+                "min_width": 8,
+                "max_width": 12,
+                "min_height": 6,
+                "max_height": 10,
+            }
+        })
+
+
+def test_rejects_negative_room_dimensions():
+    with pytest.raises(ValueError, match="positive integer"):
+        validate_inputs(20, 12, {
+            "Room A": {
+                "min_width": -1,
+                "max_width": 12,
+                "min_height": 6,
+                "max_height": 10,
+            }
+        })
+
+
+def test_rejects_minimum_greater_than_maximum():
+    with pytest.raises(ValueError, match="minimum width"):
+        validate_inputs(20, 12, {
+            "Room A": {
+                "min_width": 12,
+                "max_width": 8,
+                "min_height": 6,
+                "max_height": 10,
+            }
+        })
