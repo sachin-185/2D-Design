@@ -1,0 +1,42 @@
+{
+  "name": "t02_tight",
+  "input": {
+    "plot": [
+      24,
+      30
+    ],
+    "setbacks": {
+      "front": 3,
+      "back": 2,
+      "left": 2,
+      "right": 2
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen",
+        "zone": "SE",
+        "zone_mode": "try"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom",
+        "zone": "NW",
+        "zone_mode": "must"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

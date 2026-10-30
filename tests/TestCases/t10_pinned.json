@@ -1,0 +1,48 @@
+{
+  "name": "t10_pinned",
+  "input": {
+    "plot": [
+      30,
+      40
+    ],
+    "setbacks": {
+      "front": 5,
+      "back": 3,
+      "left": 3,
+      "right": 3
+    },
+    "entrance": "S",
+    "north": "up",
+    "pins": [
+      {
+        "room": "bedroom",
+        "width": 14
+      }
+    ],
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen",
+        "zone": "SE",
+        "zone_mode": "try"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom",
+        "zone": "NW",
+        "zone_mode": "must"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

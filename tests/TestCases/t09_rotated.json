@@ -1,0 +1,42 @@
+{
+  "name": "t09_rotated",
+  "input": {
+    "plot": [
+      30,
+      40
+    ],
+    "setbacks": {
+      "front": 5,
+      "back": 3,
+      "left": 3,
+      "right": 3
+    },
+    "entrance": "N",
+    "north": "left",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen",
+        "zone": "SE",
+        "zone_mode": "try"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom",
+        "zone": "NW",
+        "zone_mode": "must"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

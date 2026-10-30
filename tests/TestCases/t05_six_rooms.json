@@ -1,0 +1,52 @@
+{
+  "name": "t05_six_rooms",
+  "input": {
+    "plot": [
+      40,
+      50
+    ],
+    "setbacks": {
+      "front": 5,
+      "back": 3,
+      "left": 3,
+      "right": 3
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen",
+        "zone": "SE",
+        "zone_mode": "try"
+      },
+      {
+        "name": "bedroom1",
+        "type": "bedroom",
+        "zone": "NW",
+        "zone_mode": "must"
+      },
+      {
+        "name": "bedroom2",
+        "type": "bedroom",
+        "zone": "NE",
+        "zone_mode": "must"
+      },
+      {
+        "name": "bathroom1",
+        "type": "bathroom"
+      },
+      {
+        "name": "bathroom2",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

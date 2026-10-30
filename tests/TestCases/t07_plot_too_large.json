@@ -1,0 +1,39 @@
+{
+  "name": "t07_plot_too_large",
+  "input": {
+    "plot": [60, 80],
+    "setbacks": {
+      "front": 5,
+      "back": 3,
+      "left": 3,
+      "right": 3
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen",
+        "zone": "SE",
+        "zone_mode": "try"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom",
+        "zone": "NW",
+        "zone_mode": "must"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "pending"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "t06_too_many",
+  "input": {
+    "plot": [
+      25,
+      35
+    ],
+    "setbacks": {
+      "front": 5,
+      "back": 3,
+      "left": 3,
+      "right": 3
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen",
+        "zone": "SE",
+        "zone_mode": "try"
+      },
+      {
+        "name": "bedroom1",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom2",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom3",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom4",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom5",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom1",
+        "type": "bathroom"
+      },
+      {
+        "name": "bathroom2",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "infeasible"
+  }
+}
