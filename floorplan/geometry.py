@@ -17,6 +17,13 @@ DEFAULT_ROOM_SPECS = {
     },
 }
 
+# Hallway configuration (MVP - provisional values)
+HALLWAY_ID = "hallway_1"
+
+HALLWAY_MIN_SHORT_SIDE = 3
+HALLWAY_MAX_SHORT_SIDE = 4
+HALLWAY_MIN_LONG_SIDE = 12
+
 
 def validate_inputs(plot_width, plot_height, room_specs):
     """Validate plot dimensions and room dimension specifications."""
@@ -297,6 +304,91 @@ def solve_layout(
 
         x_intervals.append(x_interval)
         y_intervals.append(y_interval)
+
+    # 9. Create variables for the single MVP hallway.
+    hallway_vars = {
+        "x": model.new_int_var(
+            0, buildable_width, "hallway_1_x"
+        ),
+        "y": model.new_int_var(
+            0, buildable_depth, "hallway_1_y"
+        ),
+        "w": model.new_int_var(
+            1, buildable_width, "hallway_1_width"
+        ),
+        "h": model.new_int_var(
+            1, buildable_depth, "hallway_1_height"
+        ),
+    }
+
+    # Calculate the hallway's right and top edges.
+    hallway_x_end = model.new_int_var(
+        0, buildable_width, "hallway_1_x_end"
+    )
+
+    hallway_y_end = model.new_int_var(
+        0, buildable_depth, "hallway_1_y_end"
+    )
+
+    model.add(
+        hallway_x_end == hallway_vars["x"] + hallway_vars["w"]
+    )
+
+    model.add(
+        hallway_y_end == hallway_vars["y"] + hallway_vars["h"]
+    )
+
+    # Represent the hallway's horizontal and vertical extents.
+    hallway_x_interval = model.new_interval_var(
+        hallway_vars["x"],
+        hallway_vars["w"],
+        hallway_x_end,
+        "hallway_1_x_interval",
+    )
+
+    hallway_y_interval = model.new_interval_var(
+        hallway_vars["y"],
+        hallway_vars["h"],
+        hallway_y_end,
+        "hallway_1_y_interval",
+    )
+
+    # 10. Enforce hallway dimensions and orientation.
+
+    # Boolean variables representing the two possible orientations.
+    horizontal = model.new_bool_var("hallway_horizontal")
+    vertical = model.new_bool_var("hallway_vertical")
+
+    # Horizontal hallway:
+    # Width = long side, height = short side.
+    model.add(
+        hallway_vars["w"] >= HALLWAY_MIN_LONG_SIDE
+    ).only_enforce_if(horizontal)
+
+    model.add(
+        hallway_vars["h"] >= HALLWAY_MIN_SHORT_SIDE
+    ).only_enforce_if(horizontal)
+
+    model.add(
+        hallway_vars["h"] <= HALLWAY_MAX_SHORT_SIDE
+    ).only_enforce_if(horizontal)
+
+    # Vertical hallway:
+    # Height = long side, width = short side.
+    model.add(
+        hallway_vars["h"] >= HALLWAY_MIN_LONG_SIDE
+    ).only_enforce_if(vertical)
+
+    model.add(
+        hallway_vars["w"] >= HALLWAY_MIN_SHORT_SIDE
+    ).only_enforce_if(vertical)
+
+    model.add(
+        hallway_vars["w"] <= HALLWAY_MAX_SHORT_SIDE
+    ).only_enforce_if(vertical)
+
+    # At least one orientation must be selected.
+    model.add_bool_or([horizontal, vertical])
 
     # 9. Prevent rooms from overlapping.
     model.add_no_overlap_2d(x_intervals, y_intervals)
