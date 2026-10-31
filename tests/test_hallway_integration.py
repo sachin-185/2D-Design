@@ -108,3 +108,49 @@ def test_living_room_touches_south_entrance_boundary():
     living = result["rooms"]["living_room"]
 
     assert living["y"] == 0
+
+def test_rooms_and_hallway_cover_buildable_area():
+
+    room_specs = {
+        "living_room": {
+            "min_width": 8,
+            "max_width": 12,
+            "min_height": 8,
+            "max_height": 12,
+        }
+    }
+
+    layout_input = {
+        "entrance": "S",
+        "north": "up",
+        "rooms": [
+            {"name": "living_room", "type": "living"},
+        ],
+    }
+
+    result = solve_layout(
+        plot_width=12,
+        plot_height=12,
+        room_specs=room_specs,
+        include_hallway=True,
+        layout_input=layout_input,
+        require_full_coverage=True,
+    )
+
+    assert result["status"] == "success"
+
+    rooms_area = sum(
+        room["area"]
+        for room in result["rooms"].values()
+    )
+
+    hallway_area = result["hallway"]["area"]
+
+    total_area = rooms_area + hallway_area
+
+    buildable_area = (
+        result["buildable_width"] *
+        result["buildable_depth"]
+    )
+
+    assert total_area == buildable_area

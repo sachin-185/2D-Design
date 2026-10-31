@@ -206,6 +206,7 @@ def solve_layout(
     setbacks=None,
     include_hallway=False,
     layout_input=None,
+    require_full_coverage=False,
 ):
     # 1. Set default room specifications.
     if room_specs is None:
@@ -538,6 +539,47 @@ def solve_layout(
                 == buildable_width
             )
 
+    # 14. Create area variables for all rooms and hallway.
+    buildable_area_total = buildable_width * buildable_depth
+
+    room_area_vars = {}
+
+    for name in room_specs:
+
+        room_area = model.new_int_var(
+            0,
+            buildable_area_total,
+            f"{name}_area",
+        )
+
+        model.add_multiplication_equality(
+            room_area,
+            [width_vars[name], height_vars[name]],
+        )
+
+        room_area_vars[name] = room_area
+
+    if include_hallway:
+
+        hallway_area = model.new_int_var(
+            0,
+            buildable_area_total,
+            "hallway_area",
+        )
+
+        model.add_multiplication_equality(
+            hallway_area,
+            [hallway_vars["w"], hallway_vars["h"]],
+        )
+
+    if include_hallway and require_full_coverage:
+
+        total_occupied_area = sum(room_area_vars.values()) + hallway_area
+
+        model.add(
+            total_occupied_area == buildable_area_total
+        )
+        
     # 13. Prevent rooms from overlapping.
     model.add_no_overlap_2d(x_intervals, y_intervals)
 
@@ -577,7 +619,28 @@ def solve_layout(
             "y": y,
             "width": width,
             "height": height,
+            "w": width,
+            "h": height,
             "area": width * height,
+        }
+
+    # Extract hallway solution when hallway mode is enabled.
+    hallway_result = None
+
+    if include_hallway:
+
+        hallway_x = solver.value(hallway_vars["x"])
+        hallway_y = solver.value(hallway_vars["y"])
+        hallway_w = solver.value(hallway_vars["w"])
+        hallway_h = solver.value(hallway_vars["h"])
+
+        hallway_result = {
+            "id": HALLWAY_ID,
+            "x": hallway_x,
+            "y": hallway_y,
+            "w": hallway_w,
+            "h": hallway_h,
+            "area": hallway_w * hallway_h,
         }
 
     return {
@@ -585,6 +648,11 @@ def solve_layout(
         "status": "success",
         "message": "A valid layout was found.",
         "rooms": rooms,
+        **(
+            {"hallway": hallway_result}
+            if include_hallway
+            else {}
+        ),
     }
 
 
