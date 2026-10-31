@@ -1,5 +1,5 @@
 from ortools.sat.python import cp_model
-
+from .connections import required_pairs, add_adjacency
 
 # Default room specifications used when no custom specifications are supplied.
 DEFAULT_ROOM_SPECS = {
@@ -24,6 +24,33 @@ HALLWAY_MIN_SHORT_SIDE = 3
 HALLWAY_MAX_SHORT_SIDE = 4
 HALLWAY_MIN_LONG_SIDE = 12
 
+# Maps compass directions to drawing edges based on north orientation.
+ENTRANCE_EDGE = {
+    "up": {
+        "N": "top",
+        "E": "right",
+        "S": "bottom",
+        "W": "left",
+    },
+    "down": {
+        "N": "bottom",
+        "E": "left",
+        "S": "top",
+        "W": "right",
+    },
+    "left": {
+        "N": "left",
+        "E": "top",
+        "S": "right",
+        "W": "bottom",
+    },
+    "right": {
+        "N": "right",
+        "E": "bottom",
+        "S": "left",
+        "W": "top",
+    },
+}
 
 def validate_inputs(plot_width, plot_height, room_specs):
     """Validate plot dimensions and room dimension specifications."""
@@ -177,6 +204,8 @@ def solve_layout(
     plot_height=12,
     room_specs=None,
     setbacks=None,
+    include_hallway=False,
+    layout_input=None,
 ):
     # 1. Set default room specifications.
     if room_specs is None:
@@ -305,95 +334,214 @@ def solve_layout(
         x_intervals.append(x_interval)
         y_intervals.append(y_interval)
 
-    # 9. Create variables for the single MVP hallway.
-    hallway_vars = {
-        "x": model.new_int_var(
-            0, buildable_width, "hallway_1_x"
-        ),
-        "y": model.new_int_var(
-            0, buildable_depth, "hallway_1_y"
-        ),
-        "w": model.new_int_var(
-            1, buildable_width, "hallway_1_width"
-        ),
-        "h": model.new_int_var(
-            1, buildable_depth, "hallway_1_height"
-        ),
-    }
+    hallway_vars = None
 
-    # Calculate the hallway's right and top edges.
-    hallway_x_end = model.new_int_var(
-        0, buildable_width, "hallway_1_x_end"
-    )
+    if include_hallway:    
+        # 9. Create variables for the single MVP hallway.
+        hallway_vars = {
+            "x": model.new_int_var(
+                0, buildable_width, "hallway_1_x"
+            ),
+            "y": model.new_int_var(
+                0, buildable_depth, "hallway_1_y"
+            ),
+            "w": model.new_int_var(
+                1, buildable_width, "hallway_1_width"
+            ),
+            "h": model.new_int_var(
+                1, buildable_depth, "hallway_1_height"
+            ),
+        }
 
-    hallway_y_end = model.new_int_var(
-        0, buildable_depth, "hallway_1_y_end"
-    )
+        # Calculate the hallway's right and top edges.
+        hallway_x_end = model.new_int_var(
+            0, buildable_width, "hallway_1_x_end"
+        )
 
-    model.add(
-        hallway_x_end == hallway_vars["x"] + hallway_vars["w"]
-    )
+        hallway_y_end = model.new_int_var(
+            0, buildable_depth, "hallway_1_y_end"
+        )
 
-    model.add(
-        hallway_y_end == hallway_vars["y"] + hallway_vars["h"]
-    )
+        model.add(
+            hallway_x_end == hallway_vars["x"] + hallway_vars["w"]
+        )
 
-    # Represent the hallway's horizontal and vertical extents.
-    hallway_x_interval = model.new_interval_var(
-        hallway_vars["x"],
-        hallway_vars["w"],
-        hallway_x_end,
-        "hallway_1_x_interval",
-    )
+        model.add(
+            hallway_y_end == hallway_vars["y"] + hallway_vars["h"]
+        )
 
-    hallway_y_interval = model.new_interval_var(
-        hallway_vars["y"],
-        hallway_vars["h"],
-        hallway_y_end,
-        "hallway_1_y_interval",
-    )
+        # Enforce hallway boundary constraints.
+        model.add(hallway_vars["x"] >= 0)
+        model.add(hallway_vars["y"] >= 0)
 
-    # 10. Enforce hallway dimensions and orientation.
+        model.add(
+            hallway_vars["x"] + hallway_vars["w"]
+            <= buildable_width
+        )
 
-    # Boolean variables representing the two possible orientations.
-    horizontal = model.new_bool_var("hallway_horizontal")
-    vertical = model.new_bool_var("hallway_vertical")
+        model.add(
+            hallway_vars["y"] + hallway_vars["h"]
+            <= buildable_depth
+        )
 
-    # Horizontal hallway:
-    # Width = long side, height = short side.
-    model.add(
-        hallway_vars["w"] >= HALLWAY_MIN_LONG_SIDE
-    ).only_enforce_if(horizontal)
+        # Represent the hallway's horizontal and vertical extents.
+        hallway_x_interval = model.new_interval_var(
+            hallway_vars["x"],
+            hallway_vars["w"],
+            hallway_x_end,
+            "hallway_1_x_interval",
+        )
 
-    model.add(
-        hallway_vars["h"] >= HALLWAY_MIN_SHORT_SIDE
-    ).only_enforce_if(horizontal)
+        hallway_y_interval = model.new_interval_var(
+            hallway_vars["y"],
+            hallway_vars["h"],
+            hallway_y_end,
+            "hallway_1_y_interval",
+        )
 
-    model.add(
-        hallway_vars["h"] <= HALLWAY_MAX_SHORT_SIDE
-    ).only_enforce_if(horizontal)
+        # Include hallway intervals in the non-overlap model.
+        x_intervals.append(hallway_x_interval)
+        y_intervals.append(hallway_y_interval)
 
-    # Vertical hallway:
-    # Height = long side, width = short side.
-    model.add(
-        hallway_vars["h"] >= HALLWAY_MIN_LONG_SIDE
-    ).only_enforce_if(vertical)
+        # 10. Enforce hallway dimensions and orientation.
 
-    model.add(
-        hallway_vars["w"] >= HALLWAY_MIN_SHORT_SIDE
-    ).only_enforce_if(vertical)
+        # Boolean variables representing the two possible orientations.
+        horizontal = model.new_bool_var("hallway_horizontal")
+        vertical = model.new_bool_var("hallway_vertical")
 
-    model.add(
-        hallway_vars["w"] <= HALLWAY_MAX_SHORT_SIDE
-    ).only_enforce_if(vertical)
+        # Horizontal hallway:
+        # Width = long side, height = short side.
+        model.add(
+            hallway_vars["w"] >= HALLWAY_MIN_LONG_SIDE
+        ).only_enforce_if(horizontal)
 
-    # At least one orientation must be selected.
-    model.add_bool_or([horizontal, vertical])
+        model.add(
+            hallway_vars["h"] >= HALLWAY_MIN_SHORT_SIDE
+        ).only_enforce_if(horizontal)
 
-    # 9. Prevent rooms from overlapping.
+        model.add(
+            hallway_vars["h"] <= HALLWAY_MAX_SHORT_SIDE
+        ).only_enforce_if(horizontal)
+
+        # Vertical hallway:
+        # Height = long side, width = short side.
+        model.add(
+            hallway_vars["h"] >= HALLWAY_MIN_LONG_SIDE
+        ).only_enforce_if(vertical)
+
+        model.add(
+            hallway_vars["w"] >= HALLWAY_MIN_SHORT_SIDE
+        ).only_enforce_if(vertical)
+
+        model.add(
+            hallway_vars["w"] <= HALLWAY_MAX_SHORT_SIDE
+        ).only_enforce_if(vertical)
+
+        # At least one orientation must be selected.
+        model.add_bool_or([horizontal, vertical])
+
+    # 11. Create a variable mapping compatible with P4's functions.
+    if include_hallway:
+
+        if layout_input is None:
+            raise ValueError(
+                "layout_input is required when include_hallway=True"
+            )
+
+        room_variables = {
+            name: {
+                "x": x_vars[name],
+                "y": y_vars[name],
+                "w": width_vars[name],
+                "h": height_vars[name],
+            }
+            for name in room_specs
+        }
+
+        # Add hallway variables to the same mapping.
+        room_variables[HALLWAY_ID] = hallway_vars
+
+    # 12. Add required adjacency constraints from P4.
+    if include_hallway:
+
+        pairs = required_pairs(layout_input)
+
+        for i, (a, b) in enumerate(pairs):
+
+            if a not in room_variables or b not in room_variables:
+                raise ValueError(
+                    f"Invalid adjacency pair: {a}, {b}. "
+                    "One or both rooms are missing from solver variables."
+                )
+
+            add_adjacency(
+                model,
+                room_variables[a],
+                room_variables[b],
+                3,
+                buildable_width,
+                buildable_depth,
+                f"adj{i}",
+            )
+
+    # 13. Identify the living room for entrance-side placement.
+    if include_hallway:
+
+        living_rooms = [
+            room
+            for room in layout_input["rooms"]
+            if room["type"] == "living"
+        ]
+
+        if not living_rooms:
+            raise ValueError(
+                "At least one living room is required for entrance placement."
+            )
+
+        living_name = living_rooms[0]["name"]
+        living_vars = room_variables[living_name]
+
+        # Get entrance direction and north orientation.
+        entrance = layout_input.get("entrance", "S")
+        north = layout_input.get("north", "up")
+
+        # Validate the supplied directions.
+        if north not in ENTRANCE_EDGE:
+            raise ValueError(
+                f"Invalid north orientation: {north}"
+            )
+
+        if entrance not in ENTRANCE_EDGE[north]:
+            raise ValueError(
+                f"Invalid entrance direction: {entrance}"
+            )
+
+        # Convert compass direction into drawing edge.
+        entrance_edge = ENTRANCE_EDGE[north][entrance]
+
+        # Force the living room to touch the selected entrance boundary.
+        if entrance_edge == "bottom":
+            model.add(living_vars["y"] == 0)
+
+        elif entrance_edge == "top":
+            model.add(
+                living_vars["y"] + living_vars["h"]
+                == buildable_depth
+            )
+
+        elif entrance_edge == "left":
+            model.add(living_vars["x"] == 0)
+
+        elif entrance_edge == "right":
+            model.add(
+                living_vars["x"] + living_vars["w"]
+                == buildable_width
+            )
+
+    # 13. Prevent rooms from overlapping.
     model.add_no_overlap_2d(x_intervals, y_intervals)
 
-    # 10. Solve the model.
+    # 14. Solve the model.
     solver = cp_model.CpSolver()
     status = solver.solve(model)
 
@@ -415,7 +563,7 @@ def solve_layout(
             "rooms": None,
         }
 
-    # 11. Extract the solution as structured data.
+    # 15. Extract the solution as structured data.
     rooms = {}
 
     for name in room_specs:
