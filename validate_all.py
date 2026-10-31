@@ -42,3 +42,61 @@ def validate_all(inp, layout, size_table=SIZE_TABLE, check_gaps=True, door_min=D
     if check_gaps:
         found += check_no_gaps(inp, layout)
     return found
+
+def adapt_solver_result(solver_result):
+    """
+    Convert P1 solver output into the layout format expected by P4.
+    P1: rooms are stored in a dictionary.
+    P4: rooms are expected as a list of dictionaries.
+    """
+    # Safety check: only validate successful solver results.
+    if solver_result.get("status") != "success":
+        raise ValueError(
+            "Cannot validate an unsuccessful solver result."
+        )
+
+    rooms_by_name = solver_result.get("rooms")
+
+    if not isinstance(rooms_by_name, dict):
+        raise ValueError(
+            "Solver result must contain a successful rooms dictionary."
+        )
+
+    rooms = []
+
+    for name, data in rooms_by_name.items():
+        rooms.append({
+            "name": name,
+            "x": data["x"],
+            "y": data["y"],
+            "w": data.get("w", data.get("width")),
+            "h": data.get("h", data.get("height")),
+        })
+
+    layout = {
+        "rooms": rooms,
+        "hallway": solver_result.get("hallway"),
+    }
+
+    return layout
+
+
+def validate_solver_result(
+    inp,
+    solver_result,
+    size_table=SIZE_TABLE,
+    check_gaps=True,
+    door_min=DOOR_MIN,
+):
+    """
+    Adapt P1 solver output and run P4's complete validation.
+    """
+    layout = adapt_solver_result(solver_result)
+
+    return validate_all(
+        inp,
+        layout,
+        size_table=size_table,
+        check_gaps=check_gaps,
+        door_min=door_min,
+    )

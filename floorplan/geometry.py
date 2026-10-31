@@ -571,15 +571,16 @@ def solve_layout(
             hallway_area,
             [hallway_vars["w"], hallway_vars["h"]],
         )
-
+        
     if include_hallway and require_full_coverage:
 
-        total_occupied_area = sum(room_area_vars.values()) + hallway_area
+        total_occupied_area = (
+            sum(room_area_vars.values()) + hallway_area
+        )
 
         model.add(
             total_occupied_area == buildable_area_total
         )
-        
     # 13. Prevent rooms from overlapping.
     model.add_no_overlap_2d(x_intervals, y_intervals)
 
@@ -587,6 +588,15 @@ def solve_layout(
     solver = cp_model.CpSolver()
     status = solver.solve(model)
 
+    #Temporary Inclusion <>
+    print("\n--- OPTIMIZATION DIAGNOSTICS ---")
+    print("Solver status:", solver.status_name(status))
+
+    if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        print("Occupied area:", solver.objective_value, "sq ft")
+        print("Best objective bound:", solver.best_objective_bound, "sq ft")
+    #<>
+    
     if status == cp_model.INFEASIBLE:
         return {
             **result_info,
