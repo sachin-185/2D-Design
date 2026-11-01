@@ -51,6 +51,8 @@ def test_hallway_adjacency_solver_finds_layout():
         },
         include_hallway=True,
         layout_input=layout_input,
+        max_hallway_segments=2,
+        time_limit_seconds=60,
     )
 
     assert result["status"] == "success"
@@ -101,6 +103,8 @@ def test_living_room_touches_south_entrance_boundary():
         room_specs=room_specs,
         include_hallway=True,
         layout_input=layout_input,
+        max_hallway_segments=2,
+        time_limit_seconds=60,
     )
 
     assert result["status"] == "success"

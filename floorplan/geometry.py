@@ -1,5 +1,6 @@
 """CP-SAT floor-plan geometry solver with connected multi-segment hallways."""
 
+import time
 from ortools.sat.python import cp_model
 
 from .connections import add_adjacency, required_pairs
@@ -147,6 +148,245 @@ def _add_hallway_network_connectivity(model, hallway_slots, W, L):
             model.add(sum(outgoing) - sum(incoming) == sum(slot["active"] for slot in hallway_slots[1:]))
         else:
             model.add(sum(incoming) - sum(outgoing) == hallway_slots[node]["active"])
+
+
+def _add_5x5_hallway_square_constraint(
+    model, hallway_slots, W, L, square_x, square_y
+):
+    """
+    Prevent the combined active hallway network from
+    completely covering one specific 5x5 ft square.
+
+    Coordinates and dimensions use integer feet.
+    Active hallway segments must be non-overlapping.
+    """
+
+    if not hallway_slots or W < 5 or L < 5:
+        return
+
+    if not (0 <= square_x <= W - 5):
+        raise ValueError("Invalid 5x5 square x-coordinate.")
+
+    if not (0 <= square_y <= L - 5):
+        raise ValueError("Invalid 5x5 square y-coordinate.")
+
+    segment_areas = []
+
+    for index, slot in enumerate(hallway_slots):
+
+        x = slot["vars"]["x"]
+        y = slot["vars"]["y"]
+        w = slot["vars"]["w"]
+        h = slot["vars"]["h"]
+        active = slot["active"]
+
+        prefix = f"hall_{index}_square_{square_x}_{square_y}"
+
+        # Horizontal intersection.
+        left = model.new_int_var(0, W, f"{prefix}_left")
+        right = model.new_int_var(0, W, f"{prefix}_right")
+
+        model.add_max_equality(left, [x, square_x])
+        model.add_min_equality(right, [x + w, square_x + 5])
+
+        raw_width = model.new_int_var(-W, W, f"{prefix}_raw_width")
+        intersection_width = model.new_int_var(
+            0, 5, f"{prefix}_width"
+        )
+
+        model.add(raw_width == right - left)
+        model.add_max_equality(
+            intersection_width, [raw_width, 0]
+        )
+
+        # Vertical intersection.
+        bottom = model.new_int_var(0, L, f"{prefix}_bottom")
+        top = model.new_int_var(0, L, f"{prefix}_top")
+
+        model.add_max_equality(bottom, [y, square_y])
+        model.add_min_equality(top, [y + h, square_y + 5])
+
+        raw_height = model.new_int_var(-L, L, f"{prefix}_raw_height")
+        intersection_height = model.new_int_var(
+            0, 5, f"{prefix}_height"
+        )
+
+        model.add(raw_height == top - bottom)
+        model.add_max_equality(
+            intersection_height, [raw_height, 0]
+        )
+
+        # Calculate exact intersection area.
+        intersection_area = model.new_int_var(
+            0, 25, f"{prefix}_intersection_area"
+        )
+
+        model.add_multiplication_equality(
+            intersection_area,
+            [intersection_width, intersection_height],
+        )
+
+        # Count the area only if this hallway is active.
+        active_area = model.new_int_var(
+            0, 25, f"{prefix}_active_area"
+        )
+
+        model.add_multiplication_equality(
+            active_area,
+            [intersection_area, active],
+        )
+
+        segment_areas.append(active_area)
+
+    # No complete 5x5 square: maximum covered area is 24 sq ft.
+    model.add(sum(segment_areas) <= 24)
+
+
+def _find_5x5_hallway_square(segments):
+    """
+    Find one complete 5x5 square inside the combined
+    hallway network.
+
+    Returns:
+        (x, y) if a violation exists.
+        None otherwise.
+    """
+
+    if not segments:
+        return None
+
+    min_x = min(segment["x"] for segment in segments)
+    min_y = min(segment["y"] for segment in segments)
+
+    max_x = max(
+        segment["x"] + segment["w"] for segment in segments
+    )
+    max_y = max(
+        segment["y"] + segment["h"] for segment in segments
+    )
+
+    for start_x in range(min_x, max_x - 4):
+        for start_y in range(min_y, max_y - 4):
+
+            square_is_covered = True
+
+            for dx in range(5):
+                for dy in range(5):
+
+                    cell_x = start_x + dx + 0.5
+                    cell_y = start_y + dy + 0.5
+
+                    covered = any(
+                        segment["x"] <= cell_x < segment["x"] + segment["w"]
+                        and
+                        segment["y"] <= cell_y < segment["y"] + segment["h"]
+                        for segment in segments
+                    )
+
+                    if not covered:
+                        square_is_covered = False
+                        break
+
+                if not square_is_covered:
+                    break
+
+            if square_is_covered:
+                return start_x, start_y
+
+    return None
+
+
+def _solve_with_hallway_square_cuts(
+    model,
+    hallway_slots,
+    W,
+    L,
+    time_limit_seconds,
+    include_hallway=True,
+):
+    """
+    Solve the CP-SAT model using iterative 5x5 hallway constraints.
+
+    Returns:
+        solver: CP-SAT solver instance
+        status: Final solver status
+        iterations: Number of solving attempts
+    """
+
+    solve_start = time.monotonic()
+
+    solver = cp_model.CpSolver()
+    solver.parameters.num_search_workers = 8
+
+    status = cp_model.UNKNOWN
+    iteration = 0
+
+    while True:
+        iteration += 1
+
+        elapsed = time.monotonic() - solve_start
+        remaining_time = float(time_limit_seconds) - elapsed
+
+        if remaining_time <= 0:
+            status = cp_model.UNKNOWN
+            break
+
+        solver.parameters.max_time_in_seconds = remaining_time
+
+        print(f"\n5x5 constraint iteration: {iteration}")
+
+        status = solver.solve(model)
+
+        if status == cp_model.INFEASIBLE:
+            break
+
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            break
+
+        candidate_segments = []
+
+        if include_hallway:
+            for slot in hallway_slots:
+                if solver.value(slot["active"]):
+                    x = solver.value(slot["vars"]["x"])
+                    y = solver.value(slot["vars"]["y"])
+                    w = solver.value(slot["vars"]["w"])
+                    h = solver.value(slot["vars"]["h"])
+
+                    candidate_segments.append({
+                        "id": slot["id"],
+                        "x": x,
+                        "y": y,
+                        "w": w,
+                        "h": h,
+                        "area": w * h,
+                    })
+
+        violating_square = _find_5x5_hallway_square(
+            candidate_segments
+        )
+
+        if violating_square is None:
+            print("Candidate passed the 5x5 hallway check.")
+            break
+
+        square_x, square_y = violating_square
+
+        print(
+            f"5x5 violation at ({square_x}, {square_y}). "
+            "Adding a constraint and solving again."
+        )
+
+        _add_5x5_hallway_square_constraint(
+            model,
+            hallway_slots,
+            W,
+            L,
+            square_x,
+            square_y,
+        )
+
+    return solver, status, iteration
 
 
 def solve_layout(
@@ -350,10 +590,14 @@ def solve_layout(
             - sum(slot["active"] for slot in hallway_slots)
         )
 
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = float(time_limit_seconds)
-    solver.parameters.num_search_workers = 8
-    status = solver.solve(model)
+    solver, status, iterations = _solve_with_hallway_square_cuts(
+        model=model,
+        hallway_slots=hallway_slots,
+        W=W,
+        L=L,
+        time_limit_seconds=time_limit_seconds,
+        include_hallway=include_hallway,
+    )
 
     if status == cp_model.INFEASIBLE:
         return {**result_info, "status": "infeasible", "message": "No arrangement satisfies all geometry and connectivity constraints.", "rooms": None}
