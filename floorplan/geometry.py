@@ -374,8 +374,8 @@ def _solve_with_hallway_square_cuts(
     solver.parameters.relative_gap_limit = 0.10
 
     # Enable CP-SAT search diagnostics
-    solver.parameters.log_search_progress = True
-    solver.parameters.log_to_stdout = True
+    solver.parameters.log_search_progress = False
+    solver.parameters.log_to_stdout = False
 
     status = cp_model.UNKNOWN
     iteration = 0
@@ -390,7 +390,11 @@ def _solve_with_hallway_square_cuts(
             status = cp_model.UNKNOWN
             break
 
-        solver.parameters.max_time_in_seconds = remaining_time
+        iteration_time_limit = 20.0
+        solver.parameters.max_time_in_seconds = min(
+            remaining_time,
+            iteration_time_limit
+        )
 
         print(f"\n5x5 constraint iteration: {iteration}")
 
