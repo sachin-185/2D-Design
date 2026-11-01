@@ -192,3 +192,46 @@ def test_iterative_solver_rejects_square_and_finds_alternative():
 
     assert solver.value(invalid_layout) == 0
     assert _find_5x5_hallway_square(final_segments) is None
+
+def test_targeted_constraint_allows_exactly_24_square_feet():
+    model = cp_model.CpModel()
+
+    hallway_slots = []
+
+    # First segment covers 20 sq. ft. (5 x 4).
+    segment_data = [
+        (0, 0, 5, 4, 1),
+        (0, 4, 4, 1, 1),
+        # This segment would cover the missing 1 sq. ft.,
+        # but it is inactive.
+        (4, 4, 1, 1, 0),
+    ]
+
+    for index, (x_value, y_value, w_value, h_value, active_value) in enumerate(segment_data):
+        x = model.new_int_var(x_value, x_value, f"x_{index}")
+        y = model.new_int_var(y_value, y_value, f"y_{index}")
+        w = model.new_int_var(w_value, w_value, f"w_{index}")
+        h = model.new_int_var(h_value, h_value, f"h_{index}")
+
+        active = model.new_bool_var(f"active_{index}")
+        model.add(active == active_value)
+
+        hallway_slots.append({
+            "id": f"hallway_{index + 1}",
+            "active": active,
+            "vars": {"x": x, "y": y, "w": w, "h": h},
+        })
+
+    _add_5x5_hallway_square_constraint(
+        model,
+        hallway_slots,
+        W=10,
+        L=10,
+        square_x=0,
+        square_y=0,
+    )
+
+    solver = cp_model.CpSolver()
+    status = solver.solve(model)
+
+    assert status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
