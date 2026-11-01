@@ -3,7 +3,7 @@
 Uses the same layout format and helpers as validator.py. Does not import the solver.
 """
 from collections import deque
-
+import math
 from .validator import HALLWAY_ID, all_rooms, buildable_area, hallway_segments, violation
 
 DOOR_MIN = 3  # ft, see connection_rules.md
@@ -66,10 +66,11 @@ def check_no_gaps(inp, layout):
         return []
     diff = width * length - total
     word = "unused" if diff > 0 else "extra"
-    return [violation("H4", f"rooms cover {total} sq ft of {width * length} sq ft ({abs(diff)} sq ft {word})", [])]
+    severity = "warning" if diff > 0 else "error"
+    return [violation("H4", f"rooms cover {total} sq ft of {width * length} sq ft ({abs(diff)} sq ft {word})", [], severity)]
 
 
-HALLWAY = HALLWAY_ID  # the single MVP hallway segment, hallway_1
+HALLWAY = "hallway"  # any segment in the connected hallway network
 
 
 def expected_connections(inp):
@@ -91,11 +92,50 @@ def expected_connections(inp):
 
 
 def check_required_connections(inp, layout, door_min=DOOR_MIN):
-    """H6: every pair that must connect shares a wall of at least door_min ft."""
-    rooms = {r["name"]: r for r in all_rooms(layout)}
+    """H6: required rooms connect to any hallway segment or their paired room."""
+    rooms = {r["name"]: r for r in layout["rooms"]}
+    halls = hallway_segments(layout)
+    rooms.update({hall["name"]: hall for hall in halls})
     found = []
+
     for a, b in expected_connections(inp):
-        missing = [n for n in (a, b) if n not in rooms]
+        if b == HALLWAY:
+            if a not in rooms:
+                found.append(
+                    violation("H6", f"{a} is missing from the layout", [a])
+                )
+                continue
+
+            # Handle the case where no hallway exists.
+            if not halls:
+                found.append(
+                    violation(
+                        "H6",
+                        f"{HALLWAY_ID} is missing; {a} cannot connect to the hallway",
+                        [a, HALLWAY_ID],
+                    )
+                )
+                continue
+
+            # Find the maximum shared wall with any hallway segment.
+            best = max(
+                shared_wall_length(rooms[a], hall)
+                for hall in halls
+            )
+
+            if best < door_min:
+                found.append(
+                    violation(
+                        "H6",
+                        f"{a}: share {best} ft or less with the hallway network; "
+                        f"needs {door_min} ft",
+                        [a] + [hall["name"] for hall in halls],
+                    )
+                )
+
+            continue
+
+        missing = [name for name in (a, b) if name not in rooms]
         if missing:
             found.append(violation("H6", f"{missing[0]} is missing from the layout, so {a} and {b} cannot connect", [a, b]))
             continue
@@ -103,6 +143,26 @@ def check_required_connections(inp, layout, door_min=DOOR_MIN):
         if length < door_min:
             found.append(violation("H6", f"{a} and {b} share {length} ft of wall, need {door_min} ft", [a, b]))
     return found
+
+
+def check_hallway_connectivity(layout, door_min=DOOR_MIN):
+    """HW2: hallway segments form one connected group without using rooms."""
+    halls = hallway_segments(layout)
+    if len(halls) <= 1:
+        return []
+
+    graph = {hall["name"]: set() for hall in halls}
+    for i, first in enumerate(halls):
+        for second in halls[i + 1:]:
+            if shared_wall_length(first, second) >= door_min:
+                graph[first["name"]].add(second["name"])
+                graph[second["name"]].add(first["name"])
+
+    seen = reachable_rooms(graph, halls[0]["name"])
+    missing = sorted(set(graph) - seen)
+    if missing:
+        return [violation("HW2", f"Hallway segments are disconnected: {', '.join(missing)}", missing)]
+    return []
 
 
 def check_bedroom_through_bedroom(inp, layout, entrance_room, door_min=DOOR_MIN):
@@ -146,19 +206,89 @@ ENTRANCE_EDGE = {
 
 
 def check_hallway_shape(layout):
-    """HW1: each hallway segment is 3 to 4 ft wide and at least 12 ft long (placeholder numbers)."""
+    """HW1: each segment is 3-4 ft wide; total long-side length is >= 12 ft."""
+    halls = hallway_segments(layout)
     found = []
-    for hall in hallway_segments(layout):
+    total_long_side = 0
+    for hall in halls:
         short, long_ = sorted([hall["w"], hall["h"]])
+        total_long_side += long_
         if not HALLWAY_WIDTH[0] <= short <= HALLWAY_WIDTH[1]:
             found.append(violation(
                 "HW1", f"{hall['name']} is {short} ft wide, must be {HALLWAY_WIDTH[0]} to {HALLWAY_WIDTH[1]} ft",
-                [hall["name"]]))
-        if long_ < HALLWAY_MIN_LENGTH:
-            found.append(violation(
-                "HW1", f"{hall['name']} is only {long_} ft long, must be at least {HALLWAY_MIN_LENGTH} ft",
-                [hall["name"]]))
+                [hall["name"]],
+            ))
+    if halls and total_long_side < HALLWAY_MIN_LENGTH:
+        found.append(violation(
+            "HW1", f"Hallway network has {total_long_side} ft total length; needs at least {HALLWAY_MIN_LENGTH} ft",
+            [hall["name"] for hall in halls],
+        ))
     return found
+
+
+def check_no_5x5_hallway_square(layout):
+    """
+    HW3: Reject a hallway network if any complete 5x5 ft
+    axis-aligned square fits inside the combined hallway area.
+
+    Checks all hallway segments together, not individually.
+
+    Assumes hallway coordinates and dimensions use whole feet.
+    """
+    halls = hallway_segments(layout)
+
+    if not halls:
+        return []
+
+    # Find the overall hallway bounding rectangle.
+    min_x = min(hall["x"] for hall in halls)
+    min_y = min(hall["y"] for hall in halls)
+
+    max_x = max(hall["x"] + hall["w"] for hall in halls)
+    max_y = max(hall["y"] + hall["h"] for hall in halls)
+
+    # Check every possible 5x5 square on the 1 ft coordinate grid.
+    for start_x in range(math.floor(min_x), math.floor(max_x) - 4):
+        for start_y in range(math.floor(min_y), math.floor(max_y) - 4):
+
+            square_is_covered = True
+
+            # A 5x5 square contains 25 one-foot cells.
+            for dx in range(5):
+                for dy in range(5):
+
+                    # Test the centre of each one-foot cell.
+                    cell_x = start_x + dx + 0.5
+                    cell_y = start_y + dy + 0.5
+
+                    covered = any(
+                        hall["x"] <= cell_x < hall["x"] + hall["w"]
+                        and
+                        hall["y"] <= cell_y < hall["y"] + hall["h"]
+                        for hall in halls
+                    )
+
+                    if not covered:
+                        square_is_covered = False
+                        break
+
+                if not square_is_covered:
+                    break
+
+            if square_is_covered:
+                return [
+                    violation(
+                        "HW3",
+                        (
+                            "Hallway network contains a complete "
+                            f"5x5 ft square at ({start_x}, {start_y}). "
+                            "Hallway area must not accommodate a 5x5 ft square."
+                        ),
+                        [hall["name"] for hall in halls],
+                    )
+                ]
+
+    return []
 
 
 def check_entrance_wall(inp, layout):

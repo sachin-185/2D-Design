@@ -6,11 +6,14 @@ Rules:
 - Every check returns a list of violations. An empty list means pass.
 - Each violation is a dict: {"code", "message", "rooms"}.
 
-ASSUMPTION (waiting for P3's final output format):
+Layout format:
   layout = {
       "rooms": [{"name": "kitchen", "x": 0, "y": 0, "w": 10, "h": 10}, ...],
-      "hallway": {"id": "hallway_1", "x": 0, "y": 0, "w": 4, "h": 20}   # optional, one segment in the MVP
+      "hallway_segments": [
+          {"id": "hallway_1", "x": 0, "y": 0, "w": 12, "h": 3}, ...
+      ]
   }
+  A legacy singular "hallway" rectangle is also accepted.
   Coordinates are in feet, origin at the bottom-left of the BUILDABLE area
   (plot minus setbacks). If P3 changes the format, only all_rooms() should
   need to change.
@@ -29,8 +32,8 @@ SIZE_TABLE = {
 }
 
 
-def violation(code, message, rooms):
-    return {"code": code, "message": message, "rooms": list(rooms)}
+def violation(code, message, rooms, severity="error"):
+    return {"code": code, "message": message, "rooms": list(rooms), "severity": severity}
 
 
 def buildable_area(inp):
@@ -42,14 +45,13 @@ def buildable_area(inp):
     return width, length
 
 
-HALLWAY_ID = "hallway_1"  # id of the single MVP hallway segment (agreed with P1)
+HALLWAY_ID = "hallway_1"  # first hallway segment ID; additional segments are numbered
 
 
 def hallway_segments(layout):
-    """The hallway as a list of segments, each with a "name". MVP: one segment, hallway_1.
+    """Return all hallway rectangles as named segments.
 
-    Reads layout["hallway"] (one rectangle) or layout["hallway_segments"] (a list, for L and T
-    shapes later). A segment may carry its own "id"; otherwise it is named hallway_1, hallway_2, ...
+    Supports the current hallway_segments list and the legacy singular hallway field.
     """
     segments = layout.get("hallway_segments")
     if segments is None:

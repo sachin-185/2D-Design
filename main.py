@@ -2,27 +2,30 @@
 from floorplan.geometry import solve_layout
 from validate_all import validate_solver_result
 
+
 def report_occupied_area(result):
     rooms = result["rooms"]
-    hallway = result.get("hallway")
+    hallway_segments = result.get("hallway_segments", [])
 
-    components = []
-
-    for name, room in rooms.items():
-        components.append((name, room))
-
-    if hallway:
-        components.append(("hallway", hallway))
+    # Backward compatibility with the old single-hallway format
+    if not hallway_segments and result.get("hallway"):
+        hallway_segments = [result["hallway"]]
 
     occupied_area = 0
 
     print("\nOCCUPIED AREA BREAKDOWN:")
 
-    for name, component in components:
-        area = component["w"] * component["h"]
+    for name, room in rooms.items():
+        area = room["w"] * room["h"]
         occupied_area += area
-
         print(f"{name}: {area} sq ft")
+
+    print("\nHALLWAY AREA BREAKDOWN:")
+
+    for hallway in hallway_segments:
+        area = hallway["w"] * hallway["h"]
+        occupied_area += area
+        print(f"{hallway['id']}: {area} sq ft")
 
     buildable_area = (
         result["buildable_width"] * result["buildable_depth"]
@@ -30,9 +33,11 @@ def report_occupied_area(result):
 
     unused_area = buildable_area - occupied_area
 
-    print(f"\nBuildable area: {buildable_area} sq ft")
+    print(f"\nNumber of hallway segments: {len(hallway_segments)}")
+    print(f"Buildable area: {buildable_area} sq ft")
     print(f"Occupied area: {occupied_area} sq ft")
     print(f"Unused area: {unused_area} sq ft")
+    print(f"Coverage: {occupied_area / buildable_area * 100:.2f}%")
 
 # 1. Define room dimensions
 room_specs = {
@@ -88,10 +93,11 @@ result = solve_layout(
     plot_width=30,
     plot_height=24,
     room_specs=room_specs,
-    setbacks=layout_input["setbacks"],
-    include_hallway=True,
     layout_input=layout_input,
-    require_full_coverage=False
+    include_hallway=True,
+    require_full_coverage=False,
+    max_hallway_segments=6,
+    time_limit_seconds=60
 )
 
 if result["status"] == "success":

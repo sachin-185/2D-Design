@@ -50,14 +50,21 @@ def codes(problems):
 
 def test_expected_pairs_for_the_standard_rooms():
     assert expected_connections(INPUT) == [
-        ("living", "hallway_1"), ("bedroom", "hallway_1"), ("bathroom", "hallway_1"), ("kitchen", "living"),
+        ("living", "hallway"),
+        ("bedroom", "hallway"),
+        ("bathroom", "hallway"),
+        ("kitchen", "living"),
     ]
 
-
 def test_two_bedrooms_both_need_the_hallway():
-    inp = {**INPUT, "rooms": INPUT["rooms"] + [{"name": "bedroom2", "type": "bedroom"}]}
-    assert ("bedroom2", "hallway_1") in expected_connections(inp)
+    inp = {
+        **INPUT,
+        "rooms": INPUT["rooms"] + [
+            {"name": "bedroom2", "type": "bedroom"}
+        ]
+    }
 
+    assert ("bedroom2", "hallway") in expected_connections(inp)
 
 def test_no_living_room_means_no_kitchen_pair():
     inp = {**INPUT, "rooms": [r for r in INPUT["rooms"] if r["type"] != "living"]}

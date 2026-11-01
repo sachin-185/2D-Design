@@ -10,9 +10,11 @@ from floorplan.connections_check import (
     check_bedroom_through_bedroom,
     check_entrance_wall,
     check_hallway_shape,
+    check_hallway_connectivity,
     check_no_gaps,
     check_reachability,
     check_required_connections,
+    check_no_5x5_hallway_square,
 )
 
 from floorplan.validator import (
@@ -35,6 +37,8 @@ def validate_all(inp, layout, size_table=SIZE_TABLE, check_gaps=True, door_min=D
     found = check_inside_plot(inp, layout) + check_no_overlap(layout)
     found += check_size_limits(inp, layout, size_table)
     found += check_hallway_shape(layout)
+    found += check_no_5x5_hallway_square(layout)
+    found += check_hallway_connectivity(layout, door_min)
     found += check_entrance_wall(inp, layout)
     found += check_required_connections(inp, layout, door_min)
     found += check_reachability(layout, entrance, door_min)
@@ -73,13 +77,21 @@ def adapt_solver_result(solver_result):
             "h": data.get("h", data.get("height")),
         })
 
-    layout = {
-        "rooms": rooms,
-        "hallway": solver_result.get("hallway"),
-    }
+    layout = {"rooms": rooms}
+
+    segments = solver_result.get("hallway_segments")
+
+    if segments:
+        layout["hallway_segments"] = segments
+
+        # Backward compatibility for a single hallway
+        if len(segments) == 1:
+            layout["hallway"] = segments[0]
+
+    elif solver_result.get("hallway") is not None:
+        layout["hallway"] = solver_result["hallway"]
 
     return layout
-
 
 def validate_solver_result(
     inp,
