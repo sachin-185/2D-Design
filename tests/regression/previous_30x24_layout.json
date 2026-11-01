@@ -1,0 +1,72 @@
+{
+  "plot_width": 30,
+  "plot_height": 24,
+  "buildable_width": 30,
+  "buildable_depth": 24,
+  "buildable_area": 720,
+  "buildable_offset_x": 0,
+  "buildable_offset_y": 0,
+  "status": "success",
+  "solver_status": "FEASIBLE",
+  "coverage_optimality_proven": false,
+  "occupied_area": 720,
+  "unused_area": 0,
+  "coverage_percent": 100.0,
+  "hallway_count": 2,
+  "rooms": {
+    "living": {
+      "x": 10,
+      "y": 0,
+      "width": 20,
+      "height": 13,
+      "w": 20,
+      "h": 13,
+      "area": 260
+    },
+    "bedroom_1": {
+      "x": 3,
+      "y": 13,
+      "width": 16,
+      "height": 11,
+      "w": 16,
+      "h": 11,
+      "area": 176
+    },
+    "kitchen": {
+      "x": 19,
+      "y": 13,
+      "width": 11,
+      "height": 11,
+      "w": 11,
+      "h": 11,
+      "area": 121
+    },
+    "bathroom": {
+      "x": 3,
+      "y": 0,
+      "width": 7,
+      "height": 10,
+      "w": 7,
+      "h": 10,
+      "area": 70
+    }
+  },
+  "hallway_segments": [
+    {
+      "id": "hallway_1",
+      "x": 3,
+      "y": 10,
+      "w": 7,
+      "h": 3,
+      "area": 21
+    },
+    {
+      "id": "hallway_2",
+      "x": 0,
+      "y": 0,
+      "w": 3,
+      "h": 24,
+      "area": 72
+    }
+  ]
+}

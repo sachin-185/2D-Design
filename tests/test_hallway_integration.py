@@ -1,4 +1,5 @@
 from floorplan.geometry import solve_layout
+from validate_all import validate_solver_result
 
 
 def test_hallway_adjacency_solver_finds_layout():

@@ -96,8 +96,8 @@ result = solve_layout(
     layout_input=layout_input,
     include_hallway=True,
     require_full_coverage=False,
-    max_hallway_segments=6,
-    time_limit_seconds=60
+    max_hallway_segments=2,
+    time_limit_seconds=600
 )
 
 if result["status"] == "success":

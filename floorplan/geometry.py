@@ -241,6 +241,58 @@ def _add_5x5_hallway_square_constraint(
     # No complete 5x5 square: maximum covered area is 24 sq ft.
     model.add(sum(segment_areas) <= 24)
 
+def _find_all_5x5_hallway_squares(segments):
+    """
+    Find every integer-aligned 5x5 square fully contained
+    in the combined hallway segments.
+    """
+
+    if not segments:
+        return []
+
+    min_x = min(segment["x"] for segment in segments)
+    min_y = min(segment["y"] for segment in segments)
+
+    max_x = max(
+        segment["x"] + segment["w"]
+        for segment in segments
+    )
+    max_y = max(
+        segment["y"] + segment["h"]
+        for segment in segments
+    )
+
+    violations = []
+
+    for square_x in range(min_x, max_x - 4):
+        for square_y in range(min_y, max_y - 4):
+
+            square_is_covered = True
+
+            for dx in range(5):
+                for dy in range(5):
+
+                    center_x = square_x + dx + 0.5
+                    center_y = square_y + dy + 0.5
+
+                    cell_covered = any(
+                        segment["x"] <= center_x < segment["x"] + segment["w"]
+                        and
+                        segment["y"] <= center_y < segment["y"] + segment["h"]
+                        for segment in segments
+                    )
+
+                    if not cell_covered:
+                        square_is_covered = False
+                        break
+
+                if not square_is_covered:
+                    break
+
+            if square_is_covered:
+                violations.append((square_x, square_y))
+
+    return violations
 
 def _find_5x5_hallway_square(segments):
     """
@@ -296,6 +348,7 @@ def _find_5x5_hallway_square(segments):
     return None
 
 
+
 def _solve_with_hallway_square_cuts(
     model,
     hallway_slots,
@@ -316,7 +369,13 @@ def _solve_with_hallway_square_cuts(
     solve_start = time.monotonic()
 
     solver = cp_model.CpSolver()
+
     solver.parameters.num_search_workers = 8
+    solver.parameters.relative_gap_limit = 0.10
+
+    # Enable CP-SAT search diagnostics
+    solver.parameters.log_search_progress = True
+    solver.parameters.log_to_stdout = True
 
     status = cp_model.UNKNOWN
     iteration = 0
@@ -335,7 +394,15 @@ def _solve_with_hallway_square_cuts(
 
         print(f"\n5x5 constraint iteration: {iteration}")
 
+        iteration_start = time.monotonic()
+
         status = solver.solve(model)
+
+        iteration_elapsed = time.monotonic() - iteration_start
+
+        print(f"Solver status: {solver.status_name(status)}")
+        print(f"Iteration time: {iteration_elapsed:.2f} seconds")
+        print(f"Remaining total time: {max(0, float(time_limit_seconds) - (time.monotonic() - solve_start)):.2f} seconds")
 
         if status == cp_model.INFEASIBLE:
             break
@@ -362,29 +429,33 @@ def _solve_with_hallway_square_cuts(
                         "area": w * h,
                     })
 
-        violating_square = _find_5x5_hallway_square(
+        violating_squares = _find_all_5x5_hallway_squares(
             candidate_segments
         )
 
-        if violating_square is None:
+        if not violating_squares:
             print("Candidate passed the 5x5 hallway check.")
             break
 
-        square_x, square_y = violating_square
-
         print(
-            f"5x5 violation at ({square_x}, {square_y}). "
-            "Adding a constraint and solving again."
+            f"Found {len(violating_squares)} violating 5x5 squares."
         )
 
-        _add_5x5_hallway_square_constraint(
-            model,
-            hallway_slots,
-            W,
-            L,
-            square_x,
-            square_y,
-        )
+        for square_x, square_y in violating_squares:
+
+            print(
+                f"Adding constraint for square "
+                f"({square_x}, {square_y})"
+            )
+
+            _add_5x5_hallway_square_constraint(
+                model,
+                hallway_slots,
+                W,
+                L,
+                square_x,
+                square_y,
+            )
 
     return solver, status, iteration
 
