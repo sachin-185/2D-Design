@@ -19,6 +19,7 @@ from floorplan.connections_check import (
 
 from floorplan.validator import (
     SIZE_TABLE,
+    check_input,
     check_inside_plot,
     check_no_overlap,
     check_size_limits,
@@ -33,6 +34,9 @@ def entrance_room_name(inp):
 
 
 def validate_all(inp, layout, size_table=SIZE_TABLE, check_gaps=True, door_min=DOOR_MIN):
+    bad_input = check_input(inp)
+    if bad_input:  # the other checks need a usable input, so report only these
+        return bad_input
     entrance = entrance_room_name(inp)
     found = check_inside_plot(inp, layout) + check_no_overlap(layout)
     found += check_size_limits(inp, layout, size_table)
