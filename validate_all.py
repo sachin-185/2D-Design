@@ -47,6 +47,22 @@ def validate_all(inp, layout, size_table=SIZE_TABLE, check_gaps=True, door_min=D
         found += check_no_gaps(inp, layout)
     return found
 
+
+def errors_only(problems):
+    """Problems that make a layout invalid. A problem without a severity counts as an error."""
+    return [p for p in problems if p.get("severity", "error") == "error"]
+
+
+def warnings_only(problems):
+    """Problems that are reported but do not make a layout invalid (for example unused area)."""
+    return [p for p in problems if p.get("severity", "error") == "warning"]
+
+
+def is_valid(problems):
+    """A layout is valid when it has no errors. Warnings are allowed."""
+    return not errors_only(problems)
+
+
 def adapt_solver_result(solver_result):
     """
     Convert P1 solver output into the layout format expected by P4.
