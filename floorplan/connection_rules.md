@@ -30,15 +30,15 @@ What changed from v1: the hallway can now have several segments (HW2, HW3, corri
 
 | Room | Must share a wall of at least 3 ft with |
 | --- | --- |
-| Living room | The entrance side wall of the buildable area, and any hallway segment |
+| Living room | The entrance side wall of the buildable area, and any hallway segment only if the layout has at least one hallway segment |
 | Kitchen | The first living room |
-| Each bedroom | Any hallway segment |
-| Each bathroom | Any hallway segment (the attached-bedroom option is not decided, open decision 5) |
+| Each bedroom | Any hallway segment OR any living room (either one is enough) |
+| Each bathroom | Any hallway segment OR any living room (either one is enough; the attached-bedroom option is not decided, open decision 5) |
 | Dining, utility, store | Nothing is required directly. They only need to be reachable (see Reachability) |
 
-In code, the solver side (`required_pairs`) returns `(room, "hallway")` where `"hallway"` means any segment. The checker side (`expected_connections`) is written separately and a test confirms the two agree.
+A layout may have no hallway at all (team decision, for small plots). Then the living room has no hallway requirement, bedrooms and bathrooms must touch a living room, and HW1, HW2 and HW3 do not apply. A bedroom touching only the kitchen, or nothing, is still an H6 error.
 
-Bedrooms and bathrooms may not use the living room instead of the hallway. The living room is the entrance room, and the hallway keeps bedrooms and bathrooms off it. This can be relaxed later by team decision.
+In code, the solver side (`required_pairs`) returns `(room, "hallway")` where `"hallway"` means any segment. The checker side (`expected_connections`) is written separately and a test confirms the two agree. Both still list the strict hallway pairs. The checker applies the living room alternative and the optional hallway inside `check_required_connections`. The solver side still uses the strict hallway rule until P1 updates it.
 
 ## Entrance wall
 
@@ -79,7 +79,7 @@ A problem is `{code, message, rooms, severity}`. Severity is `error` (the layout
 | H2 | error | A room is outside its size limits, a pinned size was not held, or the room type has no size rule |
 | H3 | error | Two rooms overlap |
 | H4 | warning or error | Rooms and hallway do not fill the buildable area. Unused area is a warning, extra area is an error |
-| H6 | error | A required connection is missing (less than 3 ft of shared wall, or no hallway segment touched) |
+| H6 | error | A required connection is missing: less than 3 ft of shared wall. A bedroom or bathroom touches neither a hallway segment nor a living room, a living room does not touch the hallway when there is one, or a kitchen does not touch the first living room |
 | HW1 | error | A hallway segment is not 3 to 4 ft wide, or the total corridor length is under 12 ft |
 | HW2 | error | Hallway segments are not one connected group |
 | HW3 | error | A 5 x 5 ft square fits inside the hallway segments |
@@ -103,6 +103,6 @@ A problem is `{code, message, rooms, severity}`. Severity is `error` (the layout
 5. Bathroom attached to a bedroom: does it connect to that bedroom instead of the hallway? Proposed: an optional `attached_to` field on the bathroom (P3 to confirm). Today every bathroom must touch a hallway segment.
 6. Hallway numbers (3 to 4 ft wide, total length at least 12 ft) are placeholders. To be confirmed with P2 or the team.
 7. Maximum share of unused area (for example warn above one number, error above another). Not decided.
-8. Whether bedrooms and bathrooms may be reached through the living room instead of the hallway. Current answer: no.
+8. Whether bedrooms and bathrooms may be reached through the living room instead of the hallway. Decided by the team: yes. A bedroom or bathroom may touch any hallway segment or any living room, and a layout may have no hallway. Built in the checker; the solver side (P1) will follow later.
 9. Rule code list: the codes above are placeholders until the team agrees one list.
 10. Who retries the solver when the checker finds errors.

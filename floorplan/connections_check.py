@@ -4,7 +4,7 @@ Uses the same layout format and helpers as validator.py. Does not import the sol
 """
 from collections import deque
 import math
-from .validator import HALLWAY_ID, all_rooms, buildable_area, hallway_segments, violation
+from .validator import all_rooms, buildable_area, hallway_segments, violation
 
 DOOR_MIN = 3  # ft, see connection_rules.md
 
@@ -91,48 +91,65 @@ def expected_connections(inp):
     return pairs
 
 
+# Room types that may use any living room instead of the hallway (team decision, open decision 8).
+LIVING_ALTERNATIVE_TYPES = ("bedroom", "bathroom")
+
+
+def longest_shared_wall(room, others):
+    """The longest wall room shares with any rectangle in others. 0 when others is empty."""
+    return max((shared_wall_length(room, other) for other in others), default=0)
+
+
+def check_hallway_requirement(name, room_type, rooms, halls, living_rooms, door_min=DOOR_MIN):
+    """H6 for one (room, "hallway") pair from expected_connections.
+
+    - Bedroom and bathroom: any hallway segment OR any living room is enough.
+    - Living room: must touch a hallway segment only when the layout has one.
+
+    The solver side (required_pairs in connections.py) still uses the strict hallway rule.
+    P1 will update it later; expected_connections keeps the same pairs so the two lists still agree.
+    """
+    if name not in rooms:
+        return [violation("H6", f"{name} is missing from the layout", [name])]
+    room = rooms[name]
+    hall_names = [hall["name"] for hall in halls]
+
+    if room_type in LIVING_ALTERNATIVE_TYPES:
+        hall_wall = longest_shared_wall(room, halls)
+        living_wall = longest_shared_wall(room, living_rooms)
+        if max(hall_wall, living_wall) >= door_min:
+            return []
+        hall_note = "" if halls else " (the layout has no hallway)"
+        living_note = "" if living_rooms else " (the layout has no living room)"
+        return [violation(
+            "H6",
+            f"{name} shares {hall_wall} ft with the hallway network{hall_note} and {living_wall} ft "
+            f"with a living room{living_note}; needs {door_min} ft with one of them",
+            [name] + hall_names + [living["name"] for living in living_rooms],
+        )]
+
+    if not halls:  # no hallway in the layout: nothing to touch
+        return []
+    hall_wall = longest_shared_wall(room, halls)
+    if hall_wall >= door_min:
+        return []
+    return [violation(
+        "H6", f"{name} shares {hall_wall} ft with the hallway network; needs {door_min} ft", [name] + hall_names)]
+
+
 def check_required_connections(inp, layout, door_min=DOOR_MIN):
-    """H6: required rooms connect to any hallway segment or their paired room."""
+    """H6: required rooms connect to the hallway (or, for bedrooms and bathrooms, a living room)
+    and to their paired room."""
     rooms = {r["name"]: r for r in layout["rooms"]}
     halls = hallway_segments(layout)
+    types = {r["name"]: r["type"] for r in inp["rooms"]}
+    living_rooms = [rooms[name] for name, kind in types.items() if kind == "living" and name in rooms]
     rooms.update({hall["name"]: hall for hall in halls})
     found = []
 
     for a, b in expected_connections(inp):
         if b == HALLWAY:
-            if a not in rooms:
-                found.append(
-                    violation("H6", f"{a} is missing from the layout", [a])
-                )
-                continue
-
-            # Handle the case where no hallway exists.
-            if not halls:
-                found.append(
-                    violation(
-                        "H6",
-                        f"{HALLWAY_ID} is missing; {a} cannot connect to the hallway",
-                        [a, HALLWAY_ID],
-                    )
-                )
-                continue
-
-            # Find the maximum shared wall with any hallway segment.
-            best = max(
-                shared_wall_length(rooms[a], hall)
-                for hall in halls
-            )
-
-            if best < door_min:
-                found.append(
-                    violation(
-                        "H6",
-                        f"{a}: share {best} ft or less with the hallway network; "
-                        f"needs {door_min} ft",
-                        [a] + [hall["name"] for hall in halls],
-                    )
-                )
-
+            found += check_hallway_requirement(a, types.get(a), rooms, halls, living_rooms, door_min)
             continue
 
         missing = [name for name in (a, b) if name not in rooms]
