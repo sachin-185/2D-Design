@@ -41,6 +41,7 @@ def check_input(inp):
 
     P3's schema already limits these values, but the checker can be called without the schema.
     Room names "hallway" and "hallway_<number>" are reserved: they are the hallway's names.
+    attached_to must name a room in the input.
     """
     found = []
     if inp.get("entrance") not in ("N", "E", "S", "W"):
@@ -58,6 +59,13 @@ def check_input(inp):
         if name in seen:
             found.append(violation("I1", f"two rooms are named '{name}'", [name]))
         seen.add(name)
+    names = [room.get("name") for room in rooms]
+    for room in rooms:
+        target = room.get("attached_to")
+        if target and target not in names:
+            found.append(violation(
+                "I1", f"{room.get('name')} is attached to '{target}', which is not in the input",
+                [room.get("name"), target]))
     return found
 
 

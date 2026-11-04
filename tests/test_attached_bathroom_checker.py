@@ -144,11 +144,13 @@ def test_common_bathroom_keeps_its_rule_next_to_an_attached_one():
     assert [p["rooms"][0] for p in found] == ["common"]
 
 
-def test_attached_to_a_room_that_is_not_in_the_layout_gives_h6_not_a_crash():
-    inp = {**INPUT, "rooms": [LIVING, BEDROOM, {"name": "ensuite", "type": "bathroom", "attached_to": "ghost"}]}
-    found = h6(check_required_connections(inp, layout_with(rect("ensuite", 27, 0, 8, 10))))
-    assert [p["rooms"] for p in found] == [["ensuite", "ghost"]]
-    assert "ghost is missing" in found[0]["message"]
+def test_bedroom_in_the_input_but_missing_from_the_layout_gives_h6():
+    """A room the input lists but the layout lacks is a layout problem. A name not in the input is I1."""
+    layout = layout_with(rect("ensuite", 27, 0, 8, 10))
+    layout["rooms"] = [r for r in layout["rooms"] if r["name"] != "bedroom"]
+    problems = validate_all(INPUT, layout)
+    assert ["ensuite", "bedroom"] in [p["rooms"] for p in h6(problems)]
+    assert all(p["code"] != "I1" for p in problems)
 
 
 def test_missing_attached_bathroom_gives_h6():

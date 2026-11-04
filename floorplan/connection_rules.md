@@ -76,6 +76,7 @@ A problem is `{code, message, rooms, severity}`. Severity is `error` (the layout
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
+| I1 | error | The input cannot be used: bad entrance or north, no rooms, duplicate room names, reserved hallway names, or `attached_to` naming a room not in the input. Reported alone |
 | H1 | error | A room or hallway segment sticks out of the buildable area |
 | H2 | error | A room is outside its size limits, a pinned size was not held, or the room type has no size rule |
 | H3 | error | Two rooms overlap |
@@ -101,7 +102,7 @@ A problem is `{code, message, rooms, severity}`. Severity is `error` (the layout
 2. Test t08 (two rooms forced into the same zone): suggested result is conflict, naming both rooms.
 3. Is a 3 ft shared wall enough, or do we require 5 ft so a door can sit 1 ft from each corner?
 4. Definition of F3.
-5. Bathroom attached to a bedroom: settled. An optional `attached_to` field connects it to that bedroom instead of the hallway (P3's answer and schema, and P1's `required_pairs` in feature/json-solver-adapter). Still open: whether `attached_to` naming a room that does not exist should be I1. Today it is H6.
+5. Bathroom attached to a bedroom: settled. An optional `attached_to` field connects it to that bedroom instead of the hallway (P3's answer and schema, and P1's `required_pairs` in feature/json-solver-adapter). If `attached_to` names a room that is not in the input, that is bad input (I1). A bedroom listed in the input but missing from the layout is H6.
 6. Hallway numbers (3 to 4 ft wide, total length at least 12 ft) are placeholders. To be confirmed with P2 or the team.
 7. Maximum share of unused area (for example warn above one number, error above another). Not decided.
 8. Whether bedrooms and bathrooms may be reached through the living room instead of the hallway. Decided by the team: yes. A bedroom or bathroom may touch any hallway segment or any living room, and a layout may have no hallway. Built in the checker; the solver side (P1) will follow later.
