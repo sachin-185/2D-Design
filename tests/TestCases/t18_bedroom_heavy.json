@@ -1,0 +1,50 @@
+{
+  "name": "t18_bedroom_heavy",
+  "input": {
+    "plot": [
+      46,
+      40
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen"
+      },
+      {
+        "name": "bedroom_1",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom_2",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom_3",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom_1",
+        "type": "bathroom"
+      },
+      {
+        "name": "bathroom_2",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

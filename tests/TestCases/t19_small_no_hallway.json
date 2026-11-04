@@ -1,0 +1,34 @@
+{
+  "name": "t19_small_no_hallway",
+  "input": {
+    "plot": [
+      27,
+      12
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "pending"
+  }
+}

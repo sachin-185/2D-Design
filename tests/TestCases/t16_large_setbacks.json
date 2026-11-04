@@ -1,0 +1,38 @@
+{
+  "name": "t16_large_setbacks",
+  "input": {
+    "plot": [
+      36,
+      40
+    ],
+    "setbacks": {
+      "front": 6,
+      "back": 2,
+      "left": 4,
+      "right": 1
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

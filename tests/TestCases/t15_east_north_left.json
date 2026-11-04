@@ -1,0 +1,38 @@
+{
+  "name": "t15_east_north_left",
+  "input": {
+    "plot": [
+      34,
+      30
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "E",
+    "north": "left",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}
