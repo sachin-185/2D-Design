@@ -391,7 +391,7 @@ def _solve_with_hallway_square_cuts(
             )
             status = cp_model.UNKNOWN
             break
-        
+
         solver.parameters.max_time_in_seconds = min(
             remaining_time,
             iteration_time_limit
@@ -724,6 +724,9 @@ def solve_layout(
         "rooms": rooms,
         "solver_status": solver.status_name(status),
     }
+
+    result["hallway_segments"] = []
+
     if include_hallway:
         segments = []
         for slot in hallway_slots:
