@@ -61,7 +61,7 @@ def run_json_file(json_path):
     )
 
     solver_arguments["max_hallway_segments"] = 6
-    solver_arguments["time_limit_seconds"] = 60
+    solver_arguments["time_limit_seconds"] = 65
 
     print("\n[2] INPUT ADAPTER")
     print("JSON input successfully converted.")
@@ -79,33 +79,54 @@ def run_json_file(json_path):
 
     # 4. Run P4 only if P1 succeeds
     validation_errors = []
+    validation_warnings = []
 
     if solver_status == "success":
         print("\n[4] P4 VALIDATION")
 
-        validation_errors = validate_solver_result(
+        validation_results = validate_solver_result(
             input_data,
             solver_result,
             size_table=TEST_ROOM_SIZE_TABLE,
             check_gaps=True,
         )
 
+        # Separate hard errors from soft warnings
+        validation_errors = [
+            problem for problem in validation_results
+            if problem.get("severity", "error") == "error"
+        ]
+
+        validation_warnings = [
+            problem for problem in validation_results
+            if problem.get("severity") == "warning"
+        ]
+
         validation_passed = len(validation_errors) == 0
 
         print("P4 status:", "PASSED" if validation_passed else "FAILED")
 
         if validation_errors:
-            print("\nValidation problems:")
+            print("\nValidation errors:")
 
             for index, error in enumerate(validation_errors, start=1):
-                print(f"{index}. {error}")
+                print(f"{index}. [{error['code']}] {error['message']}")
+
+        if validation_warnings:
+            print("\nValidation warnings:")
+
+            for index, warning in enumerate(validation_warnings, start=1):
+                print(f"{index}. [{warning['code']}] {warning['message']}")
+
+        if not validation_errors and not validation_warnings:
+            print("No validation issues found.")
 
     else:
         validation_passed = False
 
         print("\n[4] P4 VALIDATION")
         print("Skipped because P1 did not generate a layout.")
-
+        
     # 5. Determine final status
     if solver_status == "success" and validation_passed:
         final_status = "valid"
@@ -141,6 +162,7 @@ def run_json_file(json_path):
         ),
         "validation_passed": validation_passed,
         "validation_errors": validation_errors,
+        "validation_warnings": validation_warnings,
     }
 
 

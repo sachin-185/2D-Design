@@ -105,7 +105,8 @@ def build_solver_arguments(input_data, room_size_table):
     )
 
     # Preserve the original room definitions as metadata.
-    # The current geometry solver uses name and type.
+    # The geometry solver uses name, type, and attached_to.
+    # Zone and pin constraints are not enforced by this adapter yet.
     # Zone and pin constraints are not enforced by this adapter yet.
     layout_input = {
         "rooms": [
@@ -119,6 +120,10 @@ def build_solver_arguments(input_data, room_size_table):
                 **(
                     {"zone_mode": room["zone_mode"]}
                     if "zone_mode" in room else {}
+                ),
+                **(
+                    {"attached_to": room["attached_to"]}
+                    if "attached_to" in room else {}
                 ),
             }
             for room in input_data["rooms"]

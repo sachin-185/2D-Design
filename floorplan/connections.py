@@ -6,22 +6,44 @@ The checker has an independent implementation in connections_check.py.
 HALLWAY = "hallway"
 LEGACY_HALLWAY = "hallway_1"
 
-
 def required_pairs(inp):
-    """Return required room connections; 'hallway' means any hallway segment."""
+    """
+    Return all mandatory room connections.
+
+    Rules:
+    - Living rooms must connect to any hallway segment.
+    - Bedrooms must connect to any hallway segment.
+    - Common bathrooms must connect to any hallway segment.
+    - Attached bathrooms must connect to their specified bedroom.
+    - Kitchens must connect to the first living room.
+    """
+
     pairs = []
-    living = [r["name"] for r in inp["rooms"] if r["type"] == "living"]
+
+    living = [
+        room["name"]
+        for room in inp["rooms"]
+        if room["type"] == "living"
+    ]
 
     for room in inp["rooms"]:
-        if room["type"] in ("living", "bedroom", "bathroom"):
+        room_type = room["type"]
+
+        if room_type in ("living", "bedroom"):
             pairs.append((room["name"], HALLWAY))
 
+        elif room_type == "bathroom":
+            attached_to = room.get("attached_to")
+
+            if attached_to:
+                pairs.append((room["name"], attached_to))
+            else:
+                pairs.append((room["name"], HALLWAY))
+
     if living:
-        pairs.extend(
-            (room["name"], living[0])
-            for room in inp["rooms"]
-            if room["type"] == "kitchen"
-        )
+        for room in inp["rooms"]:
+            if room["type"] == "kitchen":
+                pairs.append((room["name"], living[0]))
 
     return pairs
 

@@ -73,6 +73,161 @@ def check_no_gaps(inp, layout):
 HALLWAY = "hallway"  # any segment in the connected hallway network
 
 
+def check_leftover_space_accessibility(inp, layout):
+    """
+    H5: Every leftover region that can fit a 3x3 ft square
+    must share at least 3 ft of wall with one hallway segment.
+
+    Leftover regions that cannot fit a 3x3 ft square are ignored.
+
+    Assumes whole-foot coordinates and dimensions.
+    """
+
+    width, length = buildable_area(inp)
+
+    rooms = layout["rooms"]
+    halls = hallway_segments(layout)
+
+    # Collect all room and hallway rectangles.
+    rectangles = rooms + halls
+
+    # This check uses a one-foot grid.
+    values = [width, length]
+
+    for rect in rectangles:
+        values.extend([
+            rect["x"],
+            rect["y"],
+            rect["w"],
+            rect["h"]
+        ])
+
+    if any(not float(value).is_integer() for value in values):
+        raise ValueError(
+            "H5 requires whole-foot coordinates and dimensions."
+        )
+
+    width = int(width)
+    length = int(length)
+
+    # Step 1: Mark all occupied one-foot cells.
+    occupied = set()
+
+    for rect in rectangles:
+        for x in range(int(rect["x"]), int(rect["x"] + rect["w"])):
+            for y in range(int(rect["y"]), int(rect["y"] + rect["h"])):
+                occupied.add((x, y))
+
+    # Step 2: Identify all leftover cells.
+    remaining = {
+        (x, y)
+        for x in range(width)
+        for y in range(length)
+        if (x, y) not in occupied
+    }
+
+    # Step 3: Store cells belonging to each hallway segment.
+    hallway_cells = {}
+
+    for hall in halls:
+        name = hall["name"]
+
+        hallway_cells[name] = {
+            (x, y)
+            for x in range(int(hall["x"]), int(hall["x"] + hall["w"]))
+            for y in range(int(hall["y"]), int(hall["y"] + hall["h"]))
+        }
+
+    found = []
+
+    # Only edge-sharing cells are considered connected.
+    directions = [
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1)
+    ]
+
+    # Step 4: Find separate leftover regions using BFS.
+    while remaining:
+
+        start = remaining.pop()
+        component = {start}
+        queue = deque([start])
+
+        while queue:
+            x, y = queue.popleft()
+
+            for dx, dy in directions:
+                neighbour = (x + dx, y + dy)
+
+                if neighbour in remaining:
+                    remaining.remove(neighbour)
+                    component.add(neighbour)
+                    queue.append(neighbour)
+
+        # Step 5: Check whether this region contains a complete
+        # axis-aligned 3x3 square.
+        fits_3x3 = False
+
+        for x in range(width - 2):
+            for y in range(length - 2):
+
+                if all(
+                    (x + dx, y + dy) in component
+                    for dx in range(3)
+                    for dy in range(3)
+                ):
+                    fits_3x3 = True
+                    break
+
+            if fits_3x3:
+                break
+
+        # Ignore leftover regions smaller than 3x3.
+        if not fits_3x3:
+            continue
+
+        # Step 6: Calculate wall contact separately for
+        # each hallway segment.
+        contact_by_hallway = {
+            name: 0
+            for name in hallway_cells
+        }
+
+        for x, y in component:
+
+            for dx, dy in directions:
+                neighbour = (x + dx, y + dy)
+
+                for name, cells in hallway_cells.items():
+                    if neighbour in cells:
+                        contact_by_hallway[name] += 1
+
+        # Step 7: Find the maximum contact with one segment.
+        best_contact = max(
+            contact_by_hallway.values(),
+            default=0
+        )
+
+        if best_contact < 3:
+            found.append(
+                violation(
+                    "H5",
+                    (
+                        "A leftover region that can fit a 3x3 ft "
+                        "square shares only "
+                        f"{best_contact} ft of wall with any "
+                        "individual hallway segment. "
+                        "At least 3 ft is required."
+                    ),
+                    []
+                )
+            )
+
+    return found
+
+
 def expected_connections(inp):
     """Pairs that must share a door-sized wall, written from connection_rules.md.
 
@@ -83,8 +238,20 @@ def expected_connections(inp):
     for r in inp["rooms"]:
         names_by_type.setdefault(r["type"], []).append(r["name"])
     pairs = []
-    for room_type in ("living", "bedroom", "bathroom"):
-        pairs += [(name, HALLWAY) for name in names_by_type.get(room_type, [])]
+    for room_type in ("living", "bedroom"):
+        pairs += [
+            (name, HALLWAY)
+            for name in names_by_type.get(room_type, [])
+        ]
+
+    for room in inp["rooms"]:
+        if room["type"] == "bathroom":
+            attached_to = room.get("attached_to")
+
+            if attached_to:
+                pairs.append((room["name"], attached_to))
+            else:
+                pairs.append((room["name"], HALLWAY))
     living = names_by_type.get("living", [])
     if living:  # the first living room is the one the kitchen must touch
         pairs += [(kitchen, living[0]) for kitchen in names_by_type.get("kitchen", [])]

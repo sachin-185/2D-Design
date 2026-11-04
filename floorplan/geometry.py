@@ -189,14 +189,12 @@ def _add_5x5_hallway_square_constraint(
         model.add_max_equality(left, [x, square_x])
         model.add_min_equality(right, [x + w, square_x + 5])
 
-        raw_width = model.new_int_var(-W, W, f"{prefix}_raw_width")
         intersection_width = model.new_int_var(
             0, 5, f"{prefix}_width"
         )
 
-        model.add(raw_width == right - left)
         model.add_max_equality(
-            intersection_width, [raw_width, 0]
+            intersection_width, [right - left, 0]
         )
 
         # Vertical intersection.
@@ -206,14 +204,12 @@ def _add_5x5_hallway_square_constraint(
         model.add_max_equality(bottom, [y, square_y])
         model.add_min_equality(top, [y + h, square_y + 5])
 
-        raw_height = model.new_int_var(-L, L, f"{prefix}_raw_height")
         intersection_height = model.new_int_var(
             0, 5, f"{prefix}_height"
         )
 
-        model.add(raw_height == top - bottom)
         model.add_max_equality(
-            intersection_height, [raw_height, 0]
+            intersection_height, [top - bottom, 0]
         )
 
         # Calculate exact intersection area.
@@ -386,11 +382,16 @@ def _solve_with_hallway_square_cuts(
         elapsed = time.monotonic() - solve_start
         remaining_time = float(time_limit_seconds) - elapsed
 
+        iteration_time_limit = 20.0
+
         if remaining_time <= 0:
+            print(
+                f"Stopping before iteration {iteration}: "
+                "the total time limit has been reached."
+            )
             status = cp_model.UNKNOWN
             break
-
-        iteration_time_limit = 20.0
+        
         solver.parameters.max_time_in_seconds = min(
             remaining_time,
             iteration_time_limit
@@ -398,11 +399,20 @@ def _solve_with_hallway_square_cuts(
 
         print(f"\n5x5 constraint iteration: {iteration}")
 
+        print(
+            f"Model before solve: "
+            f"{len(model.proto.variables)} variables, "
+            f"{len(model.proto.constraints)} constraints"
+        )
+
         iteration_start = time.monotonic()
 
         status = solver.solve(model)
 
         iteration_elapsed = time.monotonic() - iteration_start
+
+        print("\nCP-SAT Search Statistics:")
+        print(solver.response_stats())
 
         print(f"Solver status: {solver.status_name(status)}")
         print(f"Iteration time: {iteration_elapsed:.2f} seconds")
@@ -413,6 +423,9 @@ def _solve_with_hallway_square_cuts(
 
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             break
+
+                # Stage 1: Extract candidate hallway segments
+        extraction_start = time.monotonic()
 
         candidate_segments = []
 
@@ -433,9 +446,21 @@ def _solve_with_hallway_square_cuts(
                         "area": w * h,
                     })
 
+        extraction_time = time.monotonic() - extraction_start
+
+        # Stage 2: Detect 5x5 violations
+        detection_start = time.monotonic()
+
         violating_squares = _find_all_5x5_hallway_squares(
             candidate_segments
         )
+
+        print("Violating square coordinates:", violating_squares)
+
+        detection_time = time.monotonic() - detection_start
+
+        print(f"Hallway extraction time: {extraction_time:.4f}s")
+        print(f"5x5 detection time: {detection_time:.4f}s")
 
         if not violating_squares:
             print("Candidate passed the 5x5 hallway check.")
@@ -445,13 +470,10 @@ def _solve_with_hallway_square_cuts(
             f"Found {len(violating_squares)} violating 5x5 squares."
         )
 
+        # Stage 3: Add targeted constraints
+        constraint_start = time.monotonic()
+
         for square_x, square_y in violating_squares:
-
-            print(
-                f"Adding constraint for square "
-                f"({square_x}, {square_y})"
-            )
-
             _add_5x5_hallway_square_constraint(
                 model,
                 hallway_slots,
@@ -461,6 +483,16 @@ def _solve_with_hallway_square_cuts(
                 square_y,
             )
 
+        print(
+            f"Model after cuts: "
+            f"{len(model.proto.variables)} variables, "
+            f"{len(model.proto.constraints)} constraints"
+        )
+
+        constraint_time = time.monotonic() - constraint_start
+
+        print(f"Constraint addition time: {constraint_time:.4f}s")
+        
     return solver, status, iteration
 
 

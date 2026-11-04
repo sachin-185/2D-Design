@@ -137,3 +137,21 @@ def test_invalid_dimension_bounds_raise_error(sample_input):
             sample_input,
             TEST_ROOM_SIZE_TABLE
         )
+
+
+def test_attached_to_is_preserved_in_solver_arguments(sample_input):
+    # Attach the bathroom to bedroom1.
+    sample_input["rooms"][3]["attached_to"] = "bedroom1"
+
+    args = build_solver_arguments(
+        sample_input,
+        TEST_ROOM_SIZE_TABLE
+    )
+
+    bathroom = next(
+        room
+        for room in args["layout_input"]["rooms"]
+        if room["name"] == "bathroom"
+    )
+
+    assert bathroom["attached_to"] == "bedroom1"

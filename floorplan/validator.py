@@ -35,6 +35,55 @@ SIZE_TABLE = {
 def violation(code, message, rooms, severity="error"):
     return {"code": code, "message": message, "rooms": list(rooms), "severity": severity}
 
+def check_input(inp):
+    """I1: the input is usable by the other checks."""
+    found = []
+
+    if inp.get("entrance") not in ("N", "E", "S", "W"):
+        found.append(violation(
+            "I1",
+            f"entrance must be N, E, S or W, got {inp.get('entrance')!r}",
+            []
+        ))
+
+    if inp.get("north", "up") not in ("up", "down", "left", "right"):
+        found.append(violation(
+            "I1",
+            f"north must be up, down, left or right, got {inp.get('north')!r}",
+            []
+        ))
+
+    rooms = inp.get("rooms") or []
+
+    if not rooms:
+        found.append(violation("I1", "the input has no rooms", []))
+
+    seen = set()
+
+    for room in rooms:
+        name = room.get("name")
+
+        if name == "hallway" or (
+            isinstance(name, str)
+            and name.startswith("hallway_")
+            and name[8:].isdigit()
+        ):
+            found.append(violation(
+                "I1",
+                f"room name '{name}' is reserved for the hallway",
+                [name]
+            ))
+
+        if name in seen:
+            found.append(violation(
+                "I1",
+                f"two rooms are named '{name}'",
+                [name]
+            ))
+
+        seen.add(name)
+
+    return found
 
 def buildable_area(inp):
     """Usable (width, length) after setbacks. Setbacks default to 0."""
