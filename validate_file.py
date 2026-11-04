@@ -82,10 +82,10 @@ def to_layout(data, path="layout", layout_index=0):
             raise FileProblem(f"{path}: the solver result has status {data.get('status')!r} ({reason})")
         if not isinstance(data.get("rooms"), dict):
             raise FileProblem(f"{path}: a solver result must have a 'rooms' dictionary")
-        for name, room in data["rooms"].items():
-            if not isinstance(room, dict):
-                raise FileProblem(f"{path}: room '{name}' must be a JSON object")
-        layout = adapt_solver_result(data)
+        try:
+            layout = adapt_solver_result(data)
+        except ValueError as e:
+            raise FileProblem(f"{path}: {e}") from None
     else:
         layout = data
 

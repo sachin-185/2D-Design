@@ -67,11 +67,26 @@ def is_valid(problems):
     return not errors_only(problems)
 
 
+def require_rectangle(rect, label):
+    """Raise ValueError unless rect has whole-number x, y, w, h with a positive width and height."""
+    if not isinstance(rect, dict):
+        raise ValueError(f"Solver result: {label} must be a dictionary, got {rect!r}.")
+    for field in ("x", "y", "w", "h"):
+        value = rect.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):  # bool counts as int in Python
+            raise ValueError(f"Solver result: {label} needs a whole number '{field}', got {value!r}.")
+    if rect["w"] <= 0 or rect["h"] <= 0:
+        raise ValueError(f"Solver result: {label} must have a positive width and height.")
+
+
 def adapt_solver_result(solver_result):
     """
     Convert P1 solver output into the layout format expected by P4.
     P1: rooms are stored in a dictionary.
     P4: rooms are expected as a list of dictionaries.
+
+    Raises ValueError if the result is unsuccessful or its rectangles are incomplete,
+    so that a broken result never reaches the checks and crashes them.
     """
     # Safety check: only validate successful solver results.
     if solver_result.get("status") != "success":
@@ -89,19 +104,29 @@ def adapt_solver_result(solver_result):
     rooms = []
 
     for name, data in rooms_by_name.items():
-        rooms.append({
+        if not isinstance(data, dict):
+            raise ValueError(f"Solver result: room '{name}' must be a dictionary, got {data!r}.")
+        room = {
             "name": name,
-            "x": data["x"],
-            "y": data["y"],
+            "x": data.get("x"),
+            "y": data.get("y"),
             "w": data.get("w", data.get("width")),
             "h": data.get("h", data.get("height")),
-        })
+        }
+        require_rectangle(room, f"room '{name}'")
+        rooms.append(room)
 
     layout = {"rooms": rooms}
 
     segments = solver_result.get("hallway_segments")
 
+    if segments and not isinstance(segments, list):
+        raise ValueError("Solver result: 'hallway_segments' must be a list.")
+
     if segments:
+        for i, segment in enumerate(segments):
+            require_rectangle(segment, f"hallway segment {i + 1}")
+
         layout["hallway_segments"] = segments
 
         # Backward compatibility for a single hallway
@@ -109,6 +134,7 @@ def adapt_solver_result(solver_result):
             layout["hallway"] = segments[0]
 
     elif solver_result.get("hallway") is not None:
+        require_rectangle(solver_result["hallway"], "hallway")
         layout["hallway"] = solver_result["hallway"]
 
     return layout
