@@ -8,13 +8,18 @@ LEGACY_HALLWAY = "hallway_1"
 
 
 def required_pairs(inp):
-    """Return required room connections; 'hallway' means any hallway segment."""
+    """Return required room connections; 'hallway' means any hallway segment.
+
+    A bathroom with attached_to connects to that bedroom instead of the hallway.
+    """
     pairs = []
     living = [r["name"] for r in inp["rooms"] if r["type"] == "living"]
 
     for room in inp["rooms"]:
-        if room["type"] in ("living", "bedroom", "bathroom"):
+        if room["type"] in ("living", "bedroom"):
             pairs.append((room["name"], HALLWAY))
+        elif room["type"] == "bathroom":
+            pairs.append((room["name"], room.get("attached_to") or HALLWAY))
 
     if living:
         pairs.extend(

@@ -1,0 +1,43 @@
+{
+  "name": "t11_attached_bathroom",
+  "input": {
+    "plot": [
+      36,
+      30
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom"
+      },
+      {
+        "name": "ensuite",
+        "type": "bathroom",
+        "attached_to": "bedroom"
+      },
+      {
+        "name": "common",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

@@ -78,13 +78,18 @@ def expected_connections(inp):
 
     Deliberately NOT shared with connections.py (the solver side), so a mistake in one cannot hide
     in the other. A test checks that the two lists agree.
+
+    An attached bathroom must touch its bedroom, even if it also touches the hallway.
     """
     names_by_type = {}
+    attached = {}
     for r in inp["rooms"]:
         names_by_type.setdefault(r["type"], []).append(r["name"])
+        if r["type"] == "bathroom" and r.get("attached_to"):
+            attached[r["name"]] = r["attached_to"]
     pairs = []
     for room_type in ("living", "bedroom", "bathroom"):
-        pairs += [(name, HALLWAY) for name in names_by_type.get(room_type, [])]
+        pairs += [(name, attached.get(name, HALLWAY)) for name in names_by_type.get(room_type, [])]
     living = names_by_type.get("living", [])
     if living:  # the first living room is the one the kitchen must touch
         pairs += [(kitchen, living[0]) for kitchen in names_by_type.get("kitchen", [])]
