@@ -74,6 +74,27 @@ def test_names_that_only_look_similar_are_allowed():
     assert check_input(changed(rooms=rooms)) == []
 
 
+def test_attached_to_a_room_not_in_the_input_is_reported_alone():
+    rooms = INPUT["rooms"] + [{"name": "bath", "type": "bathroom", "attached_to": "ghost"}]
+    problems = validate_all(changed(rooms=rooms), LAYOUT)
+    assert [p["code"] for p in problems] == ["I1"]
+    assert problems[0]["rooms"] == ["bath", "ghost"]
+    assert problems[0]["severity"] == "error"
+    assert "ghost" in problems[0]["message"]
+
+
+def test_attached_to_is_found_wherever_the_bedroom_is_listed():
+    bath = {"name": "bath", "type": "bathroom", "attached_to": "bedroom_1"}
+    assert check_input(changed(rooms=INPUT["rooms"] + [bath])) == []
+    assert check_input(changed(rooms=[bath] + INPUT["rooms"])) == []  # listed before its bedroom
+
+
+def test_empty_attached_to_is_not_bad_input():
+    for empty in (None, ""):
+        bath = {"name": "bath", "type": "bathroom", "attached_to": empty}
+        assert check_input(changed(rooms=INPUT["rooms"] + [bath])) == []
+
+
 def test_duplicate_room_names_are_reported():
     rooms = INPUT["rooms"] + [{"name": "living", "type": "living"}]
     problems = validate_all(changed(rooms=rooms), LAYOUT)

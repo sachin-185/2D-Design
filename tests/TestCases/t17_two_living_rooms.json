@@ -1,0 +1,42 @@
+{
+  "name": "t17_two_living_rooms",
+  "input": {
+    "plot": [
+      44,
+      36
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living_1",
+        "type": "living"
+      },
+      {
+        "name": "living_2",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

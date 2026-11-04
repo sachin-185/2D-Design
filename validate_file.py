@@ -16,7 +16,6 @@ The same checks are available from Python with check_files(input_path, layout_pa
 import argparse
 import json
 import sys
-from unicodedata import name
 
 from validate_all import adapt_solver_result, errors_only, validate_all, warnings_only
 
@@ -83,14 +82,10 @@ def to_layout(data, path="layout", layout_index=0):
             raise FileProblem(f"{path}: the solver result has status {data.get('status')!r} ({reason})")
         if not isinstance(data.get("rooms"), dict):
             raise FileProblem(f"{path}: a solver result must have a 'rooms' dictionary")
-        for name, room in data["rooms"].items():
-            if not isinstance(room, dict):
-                raise FileProblem(f"{sys.path}: room '{name}' must be a dictionary")    
         try:
             layout = adapt_solver_result(data)
         except ValueError as e:
-            raise FileProblem(f"{sys.path}: {e}") from e
-
+            raise FileProblem(f"{path}: {e}") from None
     else:
         layout = data
 

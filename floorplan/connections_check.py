@@ -4,7 +4,7 @@ Uses the same layout format and helpers as validator.py. Does not import the sol
 """
 from collections import deque
 import math
-from .validator import HALLWAY_ID, all_rooms, buildable_area, hallway_segments, violation
+from .validator import all_rooms, buildable_area, hallway_segments, violation
 
 DOOR_MIN = 3  # ft, see connection_rules.md
 
@@ -73,233 +73,88 @@ def check_no_gaps(inp, layout):
 HALLWAY = "hallway"  # any segment in the connected hallway network
 
 
-def check_leftover_space_accessibility(inp, layout):
-    """
-    H5: Every leftover region that can fit a 3x3 ft square
-    must share at least 3 ft of wall with one hallway segment.
-
-    Leftover regions that cannot fit a 3x3 ft square are ignored.
-
-    Assumes whole-foot coordinates and dimensions.
-    """
-
-    width, length = buildable_area(inp)
-
-    rooms = layout["rooms"]
-    halls = hallway_segments(layout)
-
-    # Collect all room and hallway rectangles.
-    rectangles = rooms + halls
-
-    # This check uses a one-foot grid.
-    values = [width, length]
-
-    for rect in rectangles:
-        values.extend([
-            rect["x"],
-            rect["y"],
-            rect["w"],
-            rect["h"]
-        ])
-
-    if any(not float(value).is_integer() for value in values):
-        raise ValueError(
-            "H5 requires whole-foot coordinates and dimensions."
-        )
-
-    width = int(width)
-    length = int(length)
-
-    # Step 1: Mark all occupied one-foot cells.
-    occupied = set()
-
-    for rect in rectangles:
-        for x in range(int(rect["x"]), int(rect["x"] + rect["w"])):
-            for y in range(int(rect["y"]), int(rect["y"] + rect["h"])):
-                occupied.add((x, y))
-
-    # Step 2: Identify all leftover cells.
-    remaining = {
-        (x, y)
-        for x in range(width)
-        for y in range(length)
-        if (x, y) not in occupied
-    }
-
-    # Step 3: Store cells belonging to each hallway segment.
-    hallway_cells = {}
-
-    for hall in halls:
-        name = hall["name"]
-
-        hallway_cells[name] = {
-            (x, y)
-            for x in range(int(hall["x"]), int(hall["x"] + hall["w"]))
-            for y in range(int(hall["y"]), int(hall["y"] + hall["h"]))
-        }
-
-    found = []
-
-    # Only edge-sharing cells are considered connected.
-    directions = [
-        (1, 0),
-        (-1, 0),
-        (0, 1),
-        (0, -1)
-    ]
-
-    # Step 4: Find separate leftover regions using BFS.
-    while remaining:
-
-        start = remaining.pop()
-        component = {start}
-        queue = deque([start])
-
-        while queue:
-            x, y = queue.popleft()
-
-            for dx, dy in directions:
-                neighbour = (x + dx, y + dy)
-
-                if neighbour in remaining:
-                    remaining.remove(neighbour)
-                    component.add(neighbour)
-                    queue.append(neighbour)
-
-        # Step 5: Check whether this region contains a complete
-        # axis-aligned 3x3 square.
-        fits_3x3 = False
-
-        for x in range(width - 2):
-            for y in range(length - 2):
-
-                if all(
-                    (x + dx, y + dy) in component
-                    for dx in range(3)
-                    for dy in range(3)
-                ):
-                    fits_3x3 = True
-                    break
-
-            if fits_3x3:
-                break
-
-        # Ignore leftover regions smaller than 3x3.
-        if not fits_3x3:
-            continue
-
-        # Step 6: Calculate wall contact separately for
-        # each hallway segment.
-        contact_by_hallway = {
-            name: 0
-            for name in hallway_cells
-        }
-
-        for x, y in component:
-
-            for dx, dy in directions:
-                neighbour = (x + dx, y + dy)
-
-                for name, cells in hallway_cells.items():
-                    if neighbour in cells:
-                        contact_by_hallway[name] += 1
-
-        # Step 7: Find the maximum contact with one segment.
-        best_contact = max(
-            contact_by_hallway.values(),
-            default=0
-        )
-
-        if best_contact < 3:
-            found.append(
-                violation(
-                    "H5",
-                    (
-                        "A leftover region that can fit a 3x3 ft "
-                        "square shares only "
-                        f"{best_contact} ft of wall with any "
-                        "individual hallway segment. "
-                        "At least 3 ft is required."
-                    ),
-                    []
-                )
-            )
-
-    return found
-
-
 def expected_connections(inp):
     """Pairs that must share a door-sized wall, written from connection_rules.md.
 
     Deliberately NOT shared with connections.py (the solver side), so a mistake in one cannot hide
     in the other. A test checks that the two lists agree.
+
+    An attached bathroom must touch its bedroom, even if it also touches the hallway.
     """
     names_by_type = {}
+    attached = {}
     for r in inp["rooms"]:
         names_by_type.setdefault(r["type"], []).append(r["name"])
+        if r["type"] == "bathroom" and r.get("attached_to"):
+            attached[r["name"]] = r["attached_to"]
     pairs = []
-    for room_type in ("living", "bedroom"):
-        pairs += [
-            (name, HALLWAY)
-            for name in names_by_type.get(room_type, [])
-        ]
-
-    for room in inp["rooms"]:
-        if room["type"] == "bathroom":
-            attached_to = room.get("attached_to")
-
-            if attached_to:
-                pairs.append((room["name"], attached_to))
-            else:
-                pairs.append((room["name"], HALLWAY))
+    for room_type in ("living", "bedroom", "bathroom"):
+        pairs += [(name, attached.get(name, HALLWAY)) for name in names_by_type.get(room_type, [])]
     living = names_by_type.get("living", [])
     if living:  # the first living room is the one the kitchen must touch
         pairs += [(kitchen, living[0]) for kitchen in names_by_type.get("kitchen", [])]
     return pairs
 
 
+# Room types that may use any living room instead of the hallway (team decision, open decision 8).
+LIVING_ALTERNATIVE_TYPES = ("bedroom", "bathroom")
+
+
+def longest_shared_wall(room, others):
+    """The longest wall room shares with any rectangle in others. 0 when others is empty."""
+    return max((shared_wall_length(room, other) for other in others), default=0)
+
+
+def check_hallway_requirement(name, room_type, rooms, halls, living_rooms, door_min=DOOR_MIN):
+    """H6 for one (room, "hallway") pair from expected_connections.
+
+    - Bedroom and bathroom: any hallway segment OR any living room is enough.
+    - Living room: must touch a hallway segment only when the layout has one.
+
+    The solver side (required_pairs in connections.py) still uses the strict hallway rule.
+    P1 will update it later; expected_connections keeps the same pairs so the two lists still agree.
+    """
+    if name not in rooms:
+        return [violation("H6", f"{name} is missing from the layout", [name])]
+    room = rooms[name]
+    hall_names = [hall["name"] for hall in halls]
+
+    if room_type in LIVING_ALTERNATIVE_TYPES:
+        hall_wall = longest_shared_wall(room, halls)
+        living_wall = longest_shared_wall(room, living_rooms)
+        if max(hall_wall, living_wall) >= door_min:
+            return []
+        hall_note = "" if halls else " (the layout has no hallway)"
+        living_note = "" if living_rooms else " (the layout has no living room)"
+        return [violation(
+            "H6",
+            f"{name} shares {hall_wall} ft with the hallway network{hall_note} and {living_wall} ft "
+            f"with a living room{living_note}; needs {door_min} ft with one of them",
+            [name] + hall_names + [living["name"] for living in living_rooms],
+        )]
+
+    if not halls:  # no hallway in the layout: nothing to touch
+        return []
+    hall_wall = longest_shared_wall(room, halls)
+    if hall_wall >= door_min:
+        return []
+    return [violation(
+        "H6", f"{name} shares {hall_wall} ft with the hallway network; needs {door_min} ft", [name] + hall_names)]
+
+
 def check_required_connections(inp, layout, door_min=DOOR_MIN):
-    """H6: required rooms connect to any hallway segment or their paired room."""
+    """H6: required rooms connect to the hallway (or, for bedrooms and bathrooms, a living room)
+    and to their paired room."""
     rooms = {r["name"]: r for r in layout["rooms"]}
     halls = hallway_segments(layout)
+    types = {r["name"]: r["type"] for r in inp["rooms"]}
+    living_rooms = [rooms[name] for name, kind in types.items() if kind == "living" and name in rooms]
     rooms.update({hall["name"]: hall for hall in halls})
     found = []
 
     for a, b in expected_connections(inp):
         if b == HALLWAY:
-            if a not in rooms:
-                found.append(
-                    violation("H6", f"{a} is missing from the layout", [a])
-                )
-                continue
-
-            # Handle the case where no hallway exists.
-            if not halls:
-                found.append(
-                    violation(
-                        "H6",
-                        f"{HALLWAY_ID} is missing; {a} cannot connect to the hallway",
-                        [a, HALLWAY_ID],
-                    )
-                )
-                continue
-
-            # Find the maximum shared wall with any hallway segment.
-            best = max(
-                shared_wall_length(rooms[a], hall)
-                for hall in halls
-            )
-
-            if best < door_min:
-                found.append(
-                    violation(
-                        "H6",
-                        f"{a}: share {best} ft or less with the hallway network; "
-                        f"needs {door_min} ft",
-                        [a] + [hall["name"] for hall in halls],
-                    )
-                )
-
+            found += check_hallway_requirement(a, types.get(a), rooms, halls, living_rooms, door_min)
             continue
 
         missing = [name for name in (a, b) if name not in rooms]

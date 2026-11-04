@@ -6,14 +6,15 @@ The checker has an independent implementation in connections_check.py.
 HALLWAY = "hallway"
 LEGACY_HALLWAY = "hallway_1"
 
+
 def required_pairs(inp):
     """
-    Return all mandatory room connections.
+    Return required room connections.
 
     Rules:
-    - Living rooms must connect to any hallway segment.
-    - Bedrooms must connect to any hallway segment.
-    - Common bathrooms must connect to any hallway segment.
+    - Living rooms must connect to a hallway segment.
+    - Bedrooms must connect to a hallway segment.
+    - Common bathrooms must connect to a hallway segment.
     - Attached bathrooms must connect to their specified bedroom.
     - Kitchens must connect to the first living room.
     """
@@ -46,6 +47,7 @@ def required_pairs(inp):
                 pairs.append((room["name"], living[0]))
 
     return pairs
+
 
 
 def add_adjacency(model, A, B, door_min, W, L, tag, enforce=None):

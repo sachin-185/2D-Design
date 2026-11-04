@@ -1,0 +1,38 @@
+{
+  "name": "t20_no_arrangement",
+  "input": {
+    "plot": [
+      70,
+      12
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "bedroom_1",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom_2",
+        "type": "bedroom"
+      },
+      {
+        "name": "bedroom_3",
+        "type": "bedroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "infeasible"
+  }
+}

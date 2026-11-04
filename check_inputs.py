@@ -34,6 +34,15 @@ for path in files:
     for p in inp.get("pins", []):
         if p.get("room") not in names:
             errors.append(f"pin refers to unknown room: {p.get('room')}")
+    types = {r.get("name"): r.get("type") for r in inp.get("rooms", [])}
+    for r in inp.get("rooms", []):
+        target = r.get("attached_to")
+        if target is None:
+            continue
+        if r.get("type") != "bathroom":
+            errors.append(f"only a bathroom can use attached_to: {r.get('name')}")
+        elif types.get(target) != "bedroom":
+            errors.append(f"attached_to must name a bedroom: {r.get('name')} -> {target}")
     status = data.get("expect", {}).get("status", "").lower()
     if status not in STATUSES:
         errors.append(f"unknown expected status: {data.get('expect', {}).get('status')!r}")

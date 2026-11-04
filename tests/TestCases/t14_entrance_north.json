@@ -1,0 +1,38 @@
+{
+  "name": "t14_entrance_north",
+  "input": {
+    "plot": [
+      30,
+      34
+    ],
+    "setbacks": {
+      "front": 0,
+      "back": 0,
+      "left": 0,
+      "right": 0
+    },
+    "entrance": "N",
+    "north": "up",
+    "rooms": [
+      {
+        "name": "living",
+        "type": "living"
+      },
+      {
+        "name": "kitchen",
+        "type": "kitchen"
+      },
+      {
+        "name": "bedroom",
+        "type": "bedroom"
+      },
+      {
+        "name": "bathroom",
+        "type": "bathroom"
+      }
+    ]
+  },
+  "expect": {
+    "status": "valid"
+  }
+}

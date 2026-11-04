@@ -85,6 +85,39 @@ def check_input(inp):
 
     return found
 
+def check_input(inp):
+    """I1: the input is usable by the other checks. Reports bad input instead of crashing.
+
+    P3's schema already limits these values, but the checker can be called without the schema.
+    Room names "hallway" and "hallway_<number>" are reserved: they are the hallway's names.
+    attached_to must name a room in the input.
+    """
+    found = []
+    if inp.get("entrance") not in ("N", "E", "S", "W"):
+        found.append(violation("I1", f"entrance must be N, E, S or W, got {inp.get('entrance')!r}", []))
+    if inp.get("north", "up") not in ("up", "down", "left", "right"):
+        found.append(violation("I1", f"north must be up, down, left or right, got {inp.get('north')!r}", []))
+    rooms = inp.get("rooms") or []
+    if not rooms:
+        found.append(violation("I1", "the input has no rooms", []))
+    seen = set()
+    for room in rooms:
+        name = room.get("name")
+        if name == "hallway" or (isinstance(name, str) and name.startswith("hallway_") and name[8:].isdigit()):
+            found.append(violation("I1", f"room name '{name}' is reserved for the hallway", [name]))
+        if name in seen:
+            found.append(violation("I1", f"two rooms are named '{name}'", [name]))
+        seen.add(name)
+    names = [room.get("name") for room in rooms]
+    for room in rooms:
+        target = room.get("attached_to")
+        if target and target not in names:
+            found.append(violation(
+                "I1", f"{room.get('name')} is attached to '{target}', which is not in the input",
+                [room.get("name"), target]))
+    return found
+
+
 def buildable_area(inp):
     """Usable (width, length) after setbacks. Setbacks default to 0."""
     plot_w, plot_l = inp["plot"]

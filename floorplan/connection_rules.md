@@ -28,17 +28,18 @@ What changed from v1: the hallway can now have several segments (HW2, HW3, corri
 
 ## Required connections
 
-| Room                   | Must share a wall of at least 3 ft with                                           |
-| ---------------------- | --------------------------------------------------------------------------------- |
-| Living room            | The entrance side wall of the buildable area, and any hallway segment             |
-| Kitchen                | The first living room                                                             |
-| Each bedroom           | Any hallway segment                                                               |
-| Each bathroom          | Any hallway segment (the attached-bedroom option is not decided, open decision 5) |
-| Dining, utility, store | Nothing is required directly. They only need to be reachable (see Reachability)   |
+| Room | Must share a wall of at least 3 ft with |
+| --- | --- |
+| Living room | The entrance side wall of the buildable area, and any hallway segment only if the layout has at least one hallway segment |
+| Kitchen | The first living room |
+| Each bedroom | Any hallway segment OR any living room (either one is enough) |
+| Each bathroom without `attached_to` | Any hallway segment OR any living room (either one is enough) |
+| Each bathroom with `attached_to` | The bedroom it names, even if it also touches a hallway segment or a living room. It does not need the hallway |
+| Dining, utility, store | Nothing is required directly. They only need to be reachable (see Reachability) |
 
-In code, the solver side (`required_pairs`) returns `(room, "hallway")` where `"hallway"` means any segment. The checker side (`expected_connections`) is written separately and a test confirms the two agree.
+A layout may have no hallway at all (team decision, for small plots). Then the living room has no hallway requirement, bedrooms and bathrooms must touch a living room, and HW1, HW2 and HW3 do not apply. A bedroom touching only the kitchen, or nothing, is still an H6 error.
 
-Bedrooms and bathrooms may not use the living room instead of the hallway. The living room is the entrance room, and the hallway keeps bedrooms and bathrooms off it. This can be relaxed later by team decision.
+In code, the solver side (`required_pairs`) returns `(room, "hallway")` where `"hallway"` means any segment. The checker side (`expected_connections`) is written separately and a test confirms the two agree. Both still list the strict hallway pairs. The checker applies the living room alternative and the optional hallway inside `check_required_connections`. The solver side still uses the strict hallway rule until P1 updates it. For a bathroom with `attached_to`, both lists return `(bathroom, bedroom)`. Several bathrooms may attach to one bedroom.
 
 ## Entrance wall
 
@@ -61,32 +62,33 @@ Bedrooms and bathrooms may not use the living room instead of the hallway. The l
 
 ## Forbidden patterns
 
-| Code | Pattern                                                                                                                                                           |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1   | A bedroom reachable only through another bedroom                                                                                                                  |
-| F2   | A door between bathroom and kitchen                                                                                                                               |
-| F3   | A toilet door facing the main entrance (suggested definition: a bathroom door must not be on the entrance wall and must not open directly into the entrance room) |
-| F4   | A bedroom with no door                                                                                                                                            |
-| F5   | Any room that cannot be reached from the entrance                                                                                                                 |
+| Code | Pattern |
+| --- | --- |
+| F1 | A bedroom reachable only through another bedroom |
+| F2 | A door between bathroom and kitchen |
+| F3 | A toilet door facing the main entrance (suggested definition: a bathroom door must not be on the entrance wall and must not open directly into the entrance room) |
+| F4 | A bedroom with no door |
+| F5 | Any room that cannot be reached from the entrance |
 
 ## Problem codes the checker reports
 
 A problem is `{code, message, rooms, severity}`. Severity is `error` (the layout is invalid) or `warning` (reported only). A problem without a severity counts as an error. A layout is valid when it has no errors (`is_valid` in validate_all.py).
 
-| Code       | Severity         | Meaning                                                                                            |
-| ---------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| H1         | error            | A room or hallway segment sticks out of the buildable area                                         |
-| H2         | error            | A room is outside its size limits, a pinned size was not held, or the room type has no size rule   |
-| H3         | error            | Two rooms overlap                                                                                  |
-| H4         | warning or error | Rooms and hallway do not fill the buildable area. Unused area is a warning, extra area is an error |
-| H6         | error            | A required connection is missing (less than 3 ft of shared wall, or no hallway segment touched)    |
-| HW1        | error            | A hallway segment is not 3 to 4 ft wide, or the total corridor length is under 12 ft               |
-| HW2        | error            | Hallway segments are not one connected group                                                       |
-| HW3        | error            | A 5 x 5 ft square fits inside the hallway segments                                                 |
-| E1         | error            | The living room does not touch the entrance wall                                                   |
-| F1         | error            | A bedroom can only be reached through another bedroom                                              |
-| F5         | error            | A room cannot be reached from the entrance room                                                    |
-| F2, F3, F4 | error            | Door based patterns (not built yet, they need door positions from P5)                              |
+| Code | Severity | Meaning |
+| --- | --- | --- |
+| I1 | error | The input cannot be used: bad entrance or north, no rooms, duplicate room names, reserved hallway names, or `attached_to` naming a room not in the input. Reported alone |
+| H1 | error | A room or hallway segment sticks out of the buildable area |
+| H2 | error | A room is outside its size limits, a pinned size was not held, or the room type has no size rule |
+| H3 | error | Two rooms overlap |
+| H4 | warning or error | Rooms and hallway do not fill the buildable area. Unused area is a warning, extra area is an error |
+| H6 | error | A required connection is missing: less than 3 ft of shared wall. A bedroom or common bathroom touches neither a hallway segment nor a living room, an attached bathroom does not touch its bedroom, a living room does not touch the hallway when there is one, or a kitchen does not touch the first living room |
+| HW1 | error | A hallway segment is not 3 to 4 ft wide, or the total corridor length is under 12 ft |
+| HW2 | error | Hallway segments are not one connected group |
+| HW3 | error | A 5 x 5 ft square fits inside the hallway segments |
+| E1 | error | The living room does not touch the entrance wall |
+| F1 | error | A bedroom can only be reached through another bedroom |
+| F5 | error | A room cannot be reached from the entrance room |
+| F2, F3, F4 | error | Door based patterns (not built yet, they need door positions from P5) |
 
 ## Status words used in test files and engine results
 
@@ -100,9 +102,9 @@ A problem is `{code, message, rooms, severity}`. Severity is `error` (the layout
 2. Test t08 (two rooms forced into the same zone): suggested result is conflict, naming both rooms.
 3. Is a 3 ft shared wall enough, or do we require 5 ft so a door can sit 1 ft from each corner?
 4. Definition of F3.
-5. Bathroom attached to a bedroom: does it connect to that bedroom instead of the hallway? Proposed: an optional `attached_to` field on the bathroom (P3 to confirm). Today every bathroom must touch a hallway segment.
+5. Bathroom attached to a bedroom: settled. An optional `attached_to` field connects it to that bedroom instead of the hallway (P3's answer and schema, and P1's `required_pairs` in feature/json-solver-adapter). If `attached_to` names a room that is not in the input, that is bad input (I1). A bedroom listed in the input but missing from the layout is H6.
 6. Hallway numbers (3 to 4 ft wide, total length at least 12 ft) are placeholders. To be confirmed with P2 or the team.
 7. Maximum share of unused area (for example warn above one number, error above another). Not decided.
-8. Whether bedrooms and bathrooms may be reached through the living room instead of the hallway. Current answer: no.
+8. Whether bedrooms and bathrooms may be reached through the living room instead of the hallway. Decided by the team: yes. A bedroom or bathroom may touch any hallway segment or any living room, and a layout may have no hallway. Built in the checker; the solver side (P1) will follow later.
 9. Rule code list: the codes above are placeholders until the team agrees one list.
 10. Who retries the solver when the checker finds errors.

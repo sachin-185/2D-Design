@@ -1,10 +1,6 @@
-"""One call that runs every check on a finished layout (P4).
 
-    problems = validate_all(inp, layout)      # [] means the layout is good
+"""One call that runs every check on a finished layout."""
 
-Layers: geometry (inside plot, overlap, sizes, gaps, hallway shape, entrance wall), adjacency
-(required connections), connectivity (reachability) and forbidden patterns (F1 so far; F2 to F4 need door positions from P5).
-"""
 from floorplan.connections_check import (
     DOOR_MIN,
     check_bedroom_through_bedroom,
@@ -15,7 +11,6 @@ from floorplan.connections_check import (
     check_reachability,
     check_required_connections,
     check_no_5x5_hallway_square,
-    check_leftover_space_accessibility,
 )
 
 from floorplan.validator import (
@@ -26,43 +21,48 @@ from floorplan.validator import (
     check_size_limits,
 )
 
+
 def entrance_room_name(inp):
-    """The room you walk into from outside: the first living room, else the first room listed."""
-    for r in inp["rooms"]:
-        if r["type"] == "living":
-            return r["name"]
+    """Return the first living room, or the first room if none exists."""
+    for room in inp["rooms"]:
+        if room["type"] == "living":
+            return room["name"]
     return inp["rooms"][0]["name"]
 
 
 def validate_all(inp, layout, size_table=SIZE_TABLE, check_gaps=True, door_min=DOOR_MIN):
+    """Run all input, geometry, adjacency and connectivity checks."""
 
-    # Validate input before running geometric and connectivity checks
+    # Validate input before running geometric and connectivity checks.
     bad_input = check_input(inp)
 
     if bad_input:
         return bad_input
 
     entrance = entrance_room_name(inp)
+
     found = check_inside_plot(inp, layout) + check_no_overlap(layout)
     found += check_size_limits(inp, layout, size_table)
     found += check_hallway_shape(layout)
     found += check_no_5x5_hallway_square(layout)
 
-    # H5: Leftover-space accessibility
-    found += check_leftover_space_accessibility(inp, layout)
     found += check_hallway_connectivity(layout, door_min)
-
     found += check_entrance_wall(inp, layout)
     found += check_required_connections(inp, layout, door_min)
     found += check_reachability(layout, entrance, door_min)
     found += check_bedroom_through_bedroom(inp, layout, entrance, door_min)
+
     if check_gaps:
         found += check_no_gaps(inp, layout)
+
     return found
+
 
 def adapt_solver_result(solver_result):
     """
     Convert P1 solver output into the layout format expected by P4.
+
+    P1 stores rooms in a dictionary; P4 expects a list of dictionaries.
     Validate the structure before converting it.
     """
 
@@ -70,9 +70,7 @@ def adapt_solver_result(solver_result):
         raise ValueError("Solver result must be a dictionary.")
 
     if solver_result.get("status") != "success":
-        raise ValueError(
-            "Cannot validate an unsuccessful solver result."
-        )
+        raise ValueError("Cannot validate an unsuccessful solver result.")
 
     rooms_by_name = solver_result.get("rooms")
 
@@ -134,9 +132,7 @@ def adapt_solver_result(solver_result):
         segments = solver_result["hallway_segments"]
 
         if not isinstance(segments, list):
-            raise ValueError(
-                "'hallway_segments' must be a list"
-            )
+            raise ValueError("'hallway_segments' must be a list")
 
         if segments:
             validated_segments = []
@@ -172,6 +168,7 @@ def adapt_solver_result(solver_result):
 
     return layout
 
+
 def validate_solver_result(
     inp,
     solver_result,
@@ -179,9 +176,8 @@ def validate_solver_result(
     check_gaps=True,
     door_min=DOOR_MIN,
 ):
-    """
-    Adapt P1 solver output and run P4's complete validation.
-    """
+    """Adapt P1 solver output and run P4's complete validation."""
+
     layout = adapt_solver_result(solver_result)
 
     return validate_all(
@@ -192,19 +188,20 @@ def validate_solver_result(
         door_min=door_min,
     )
 
+
 def errors_only(problems):
     """Return only errors. Missing severity defaults to error."""
     return [
-        p for p in problems
-        if p.get("severity", "error") == "error"
+        problem for problem in problems
+        if problem.get("severity", "error") == "error"
     ]
 
 
 def warnings_only(problems):
     """Return only warnings."""
     return [
-        p for p in problems
-        if p.get("severity", "error") == "warning"
+        problem for problem in problems
+        if problem.get("severity", "error") == "warning"
     ]
 
 

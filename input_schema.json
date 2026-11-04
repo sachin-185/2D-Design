@@ -57,6 +57,11 @@
             "enum": ["must", "try"],
             "default": "try"
           },
+          "attached_to": {
+            "description": "Bathrooms only: name of the bedroom this bathroom is attached to. It must share a wall with that bedroom and does not need the hallway.",
+            "type": "string",
+            "minLength": 1
+          },
           "min": {
             "description": "Optional [width, height] minimum in feet. Replaces the table value for this room.",
             "type": "array",
