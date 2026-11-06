@@ -48,3 +48,37 @@ python -m pytest -q
 ```
 
 For a multi-segment solver run, call `solve_layout(..., include_hallway=True, layout_input=...)` and inspect `result["hallway_segments"]`. Pass the result to `validate_solver_result(inp, result)`.
+
+# P2 integration (branch feature/p2-integration, built on feature/json-solver-adapter)
+
+## How it fits together
+
+`floorplan/engine.py` is the one call: `solve_request(inp)` and `edit_layout(inp, layout, edits, lock=[...])`.
+Input check (P4) -> size table (P3 config) -> P1 model + P2 rules -> variants -> doors -> P4 checker -> P3 output schema.
+
+- `geometry.solve_layout` gained three optional arguments, all off by default so P1's behaviour is unchanged: `model_extension` (P2 adds its rules to the same model and supplies the objective), `relative_gap_limit` and `verbose`. A room spec may set `rotatable=True`.
+- `preferences.solve_with_preferences` no longer builds a model of its own.
+- `input_adapter.build_preference_arguments` passes zones, pins and preferred sizes, which `build_solver_arguments` leaves out.
+
+## Decisions to confirm
+
+- Engine searches up to 2 hallway segments (`MAX_HALLWAY_SEGMENTS`). At 3 or more, CP-SAT cannot prove t20 impossible in 20 s, and with the scoring objective it may return nothing. One segment is tried first.
+- `MIN_REACHABLE_COVERAGE = 0.60`: below this a plot is reported as too large (t07). Placeholder for open decision 7.
+- `GAP_WEIGHT = 20` points per unused sq ft, so coverage outweighs the other penalties.
+- Sizes come from `config.py`. Dining uses the living room limits and utility/store the "other" limits through its aliases, which differ from the example table in `validator.py`. The engine passes the config table to the checker.
+
+## Known gaps
+
+- t04_long_thin expects valid, but `bedroom must NW` is impossible: the plot is 14 ft wide, the NW cell ends at x = 4, and a bedroom at least 10 ft wide has its center at x >= 5. The engine returns conflict. The test input needs changing (P4).
+- `place_doors` is a stopgap (middle of each required wall). F2, F3 and F4 are still not checked. Windows are not placed.
+- H5 (aspect ratio) and H8 (outer wall access) are in neither the solver nor the checker (P1, P4).
+- `schema.RoomInput` allows living, kitchen, bedroom, bathroom and other, while `input_schema.json` also allows dining, utility and store. The engine reports dining as type "living" in output because of the config alias (P3).
+- `render.py`, `api.py`, `app.py` and Docker do not exist yet (P3, P5). `draw_plans.py` is a demo drawing until then.
+
+## Commands
+
+```bash
+python -m pytest -q
+python draw_plans.py
+python -m floorplan.json_runner tests/TestCases/t01_standard.json
+```

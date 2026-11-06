@@ -455,3 +455,9 @@ def test_solver_rejects_room_that_cannot_fit_after_setbacks():
 
     assert result["status"] == "infeasible"
     assert result["rooms"] is None
+
+def test_no_hallway_returns_empty_hallway_segments():
+    result = solve_layout(include_hallway=False)
+
+    assert result["status"] == "success"
+    assert result["hallway_segments"] == []

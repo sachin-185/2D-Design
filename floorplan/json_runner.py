@@ -1,6 +1,5 @@
-
 """
-Run a wrapped JSON floor-plan test case through P1 and P4.
+Run a wrapped JSON floor-plan test case through the whole engine.
 
 Expected JSON structure:
 {
@@ -9,8 +8,7 @@ Expected JSON structure:
     "expect": {"status": "..."}
 }
 
-Room-size configuration is temporary until P3 confirms
-the authoritative configuration.
+    python -m floorplan.json_runner tests/TestCases/t01_standard.json
 """
 
 import argparse
@@ -18,21 +16,7 @@ import json
 from pathlib import Path
 from pprint import pprint
 
-from floorplan.geometry import solve_layout
-from floorplan.input_adapter import build_solver_arguments
-from validate_all import validate_solver_result
-
-
-# TEMPORARY TEST CONFIGURATION ONLY
-TEST_ROOM_SIZE_TABLE = {
-    "living": ([12, 12], [20, 20]),
-    "dining": ([10, 10], [16, 16]),
-    "kitchen": ([8, 8], [12, 12]),
-    "bedroom": ([10, 10], [16, 16]),
-    "bathroom": ([5, 7], [8, 10]),
-    "utility": ([4, 4], [8, 8]),
-    "store": ([4, 4], [8, 8]),
-}
+from floorplan.engine import solve_request
 
 
 def run_json_file(json_path):
@@ -50,125 +34,47 @@ def run_json_file(json_path):
     input_data = test_case["input"]
     expected_status = test_case.get("expect", {}).get("status")
 
-    print("\n[1] JSON INPUT")
     print("Test case:", case_name)
     print("Expected status:", expected_status)
 
-    # 2. Convert only the input section into solver arguments
-    solver_arguments = build_solver_arguments(
-        input_data,
-        TEST_ROOM_SIZE_TABLE
-    )
+    # 2. Run the engine. Only layouts P4 accepted come back.
+    result = solve_request(input_data)
+    final_status = result["status"]
 
-    solver_arguments["max_hallway_segments"] = 6
-    solver_arguments["time_limit_seconds"] = 65
-
-    print("\n[2] INPUT ADAPTER")
-    print("JSON input successfully converted.")
-
-    # 3. Run P1
-    print("\n[3] P1 GEOMETRY SOLVER")
-    print("Generating layout...")
-
-    solver_result = solve_layout(**solver_arguments)
-
-    solver_status = solver_result.get("status")
-
-    print("Solver status:", solver_status)
-    print("Solver message:", solver_result.get("message"))
-
-    # 4. Run P4 only if P1 succeeds
-    validation_errors = []
-    validation_warnings = []
-
-    if solver_status == "success":
-        print("\n[4] P4 VALIDATION")
-
-        validation_results = validate_solver_result(
-            input_data,
-            solver_result,
-            size_table=TEST_ROOM_SIZE_TABLE,
-            check_gaps=True,
-        )
-
-        # Separate hard errors from soft warnings
-        validation_errors = [
-            problem for problem in validation_results
-            if problem.get("severity", "error") == "error"
-        ]
-
-        validation_warnings = [
-            problem for problem in validation_results
-            if problem.get("severity") == "warning"
-        ]
-
-        validation_passed = len(validation_errors) == 0
-
-        print("P4 status:", "PASSED" if validation_passed else "FAILED")
-
-        if validation_errors:
-            print("\nValidation errors:")
-
-            for index, error in enumerate(validation_errors, start=1):
-                print(f"{index}. [{error['code']}] {error['message']}")
-
-        if validation_warnings:
-            print("\nValidation warnings:")
-
-            for index, warning in enumerate(validation_warnings, start=1):
-                print(f"{index}. [{warning['code']}] {warning['message']}")
-
-        if not validation_errors and not validation_warnings:
-            print("No validation issues found.")
-
-    else:
-        validation_passed = False
-
-        print("\n[4] P4 VALIDATION")
-        print("Skipped because P1 did not generate a layout.")
-        
-    # 5. Determine final status
-    if solver_status == "success" and validation_passed:
-        final_status = "valid"
-    elif solver_status == "infeasible":
-        final_status = "infeasible"
-    else:
-        final_status = "invalid"
-
-    print("\n[5] FINAL RESULT")
-    print("P1:", solver_status)
-    print("P4:", "PASSED" if validation_passed else "NOT PASSED")
-    print("Final status:", final_status)
+    print("\nFinal status:", final_status)
 
     if expected_status:
-        print("Expected status:", expected_status)
         print(
             "Expectation match:",
             "YES" if final_status == expected_status else "NO"
         )
 
-    if solver_status == "success":
-        print("\nGenerated layout:")
-        pprint(solver_result)
+    for message in result["messages"]:
+        print("Message:", message)
+
+    for index, layout in enumerate(result["layouts"], start=1):
+        print(
+            f"\nLayout {index}: {layout['archetype'] or 'free plan'}, "
+            f"score {layout['score']}, {layout['coverage_percent']}% coverage"
+        )
+        pprint(layout)
 
     return {
         "case": case_name,
         "expected_status": expected_status,
-        "solver_status": solver_status,
         "final_status": final_status,
         "expectation_match": (
             final_status == expected_status
             if expected_status else None
         ),
-        "validation_passed": validation_passed,
-        "validation_errors": validation_errors,
-        "validation_warnings": validation_warnings,
+        "layouts": result["layouts"],
+        "messages": result["messages"],
     }
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run a JSON test case through P1 and P4."
+        description="Run a JSON test case through the whole engine."
     )
 
     parser.add_argument(

@@ -1,0 +1,17 @@
+{
+  "name": "t22_two_bed_compact",
+  "input": {
+    "plot": [34, 40],
+    "setbacks": {"front": 4, "back": 2, "left": 2, "right": 2},
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {"name": "living", "type": "living"},
+      {"name": "kitchen", "type": "kitchen", "zone": "SE", "zone_mode": "try"},
+      {"name": "bedroom1", "type": "bedroom", "zone": "NW", "zone_mode": "try"},
+      {"name": "bedroom2", "type": "bedroom", "zone": "NE", "zone_mode": "try"},
+      {"name": "bathroom", "type": "bathroom"}
+    ]
+  },
+  "expect": {"status": "valid"}
+}
