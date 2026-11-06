@@ -1,0 +1,16 @@
+{
+  "name": "t23_north_down",
+  "input": {
+    "plot": [30, 40],
+    "setbacks": {"front": 5, "back": 3, "left": 3, "right": 3},
+    "entrance": "W",
+    "north": "down",
+    "rooms": [
+      {"name": "living", "type": "living"},
+      {"name": "kitchen", "type": "kitchen"},
+      {"name": "bedroom", "type": "bedroom", "zone": "SE", "zone_mode": "must"},
+      {"name": "bathroom", "type": "bathroom"}
+    ]
+  },
+  "expect": {"status": "valid"}
+}

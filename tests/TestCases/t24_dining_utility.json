@@ -1,0 +1,18 @@
+{
+  "name": "t24_dining_utility",
+  "input": {
+    "plot": [44, 40],
+    "setbacks": {"front": 3, "back": 3, "left": 2, "right": 2},
+    "entrance": "S",
+    "north": "up",
+    "rooms": [
+      {"name": "living", "type": "living"},
+      {"name": "dining", "type": "dining"},
+      {"name": "kitchen", "type": "kitchen"},
+      {"name": "bedroom", "type": "bedroom"},
+      {"name": "bathroom", "type": "bathroom"},
+      {"name": "utility", "type": "utility"}
+    ]
+  },
+  "expect": {"status": "valid"}
+}

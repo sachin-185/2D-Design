@@ -1,0 +1,16 @@
+{
+  "name": "t21_east_entrance",
+  "input": {
+    "plot": [36, 30],
+    "setbacks": {"front": 3, "back": 3, "left": 3, "right": 3},
+    "entrance": "E",
+    "north": "up",
+    "rooms": [
+      {"name": "living", "type": "living"},
+      {"name": "kitchen", "type": "kitchen", "zone": "NE", "zone_mode": "try"},
+      {"name": "bedroom", "type": "bedroom", "zone": "SW", "zone_mode": "must"},
+      {"name": "bathroom", "type": "bathroom"}
+    ]
+  },
+  "expect": {"status": "valid"}
+}

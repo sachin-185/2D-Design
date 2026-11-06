@@ -352,6 +352,8 @@ def _solve_with_hallway_square_cuts(
     L,
     time_limit_seconds,
     include_hallway=True,
+    relative_gap_limit=0.10,
+    verbose=True,
 ):
     """
     Solve the CP-SAT model using iterative 5x5 hallway constraints.
@@ -362,12 +364,14 @@ def _solve_with_hallway_square_cuts(
         iterations: Number of solving attempts
     """
 
+    log = print if verbose else (lambda *args, **kwargs: None)
+
     solve_start = time.monotonic()
 
     solver = cp_model.CpSolver()
 
     solver.parameters.num_search_workers = 8
-    solver.parameters.relative_gap_limit = 0.10
+    solver.parameters.relative_gap_limit = relative_gap_limit
 
     # Enable CP-SAT search diagnostics
     solver.parameters.log_search_progress = False
@@ -385,7 +389,7 @@ def _solve_with_hallway_square_cuts(
         iteration_time_limit = 20.0
 
         if remaining_time <= 0:
-            print(
+            log(
                 f"Stopping before iteration {iteration}: "
                 "the total time limit has been reached."
             )
@@ -397,9 +401,9 @@ def _solve_with_hallway_square_cuts(
             iteration_time_limit
         )
 
-        print(f"\n5x5 constraint iteration: {iteration}")
+        log(f"\n5x5 constraint iteration: {iteration}")
 
-        print(
+        log(
             f"Model before solve: "
             f"{len(model.proto.variables)} variables, "
             f"{len(model.proto.constraints)} constraints"
@@ -411,12 +415,12 @@ def _solve_with_hallway_square_cuts(
 
         iteration_elapsed = time.monotonic() - iteration_start
 
-        print("\nCP-SAT Search Statistics:")
-        print(solver.response_stats())
+        log("\nCP-SAT Search Statistics:")
+        log(solver.response_stats())
 
-        print(f"Solver status: {solver.status_name(status)}")
-        print(f"Iteration time: {iteration_elapsed:.2f} seconds")
-        print(f"Remaining total time: {max(0, float(time_limit_seconds) - (time.monotonic() - solve_start)):.2f} seconds")
+        log(f"Solver status: {solver.status_name(status)}")
+        log(f"Iteration time: {iteration_elapsed:.2f} seconds")
+        log(f"Remaining total time: {max(0, float(time_limit_seconds) - (time.monotonic() - solve_start)):.2f} seconds")
 
         if status == cp_model.INFEASIBLE:
             break
@@ -455,18 +459,18 @@ def _solve_with_hallway_square_cuts(
             candidate_segments
         )
 
-        print("Violating square coordinates:", violating_squares)
+        log("Violating square coordinates:", violating_squares)
 
         detection_time = time.monotonic() - detection_start
 
-        print(f"Hallway extraction time: {extraction_time:.4f}s")
-        print(f"5x5 detection time: {detection_time:.4f}s")
+        log(f"Hallway extraction time: {extraction_time:.4f}s")
+        log(f"5x5 detection time: {detection_time:.4f}s")
 
         if not violating_squares:
-            print("Candidate passed the 5x5 hallway check.")
+            log("Candidate passed the 5x5 hallway check.")
             break
 
-        print(
+        log(
             f"Found {len(violating_squares)} violating 5x5 squares."
         )
 
@@ -483,7 +487,7 @@ def _solve_with_hallway_square_cuts(
                 square_y,
             )
 
-        print(
+        log(
             f"Model after cuts: "
             f"{len(model.proto.variables)} variables, "
             f"{len(model.proto.constraints)} constraints"
@@ -491,7 +495,7 @@ def _solve_with_hallway_square_cuts(
 
         constraint_time = time.monotonic() - constraint_start
 
-        print(f"Constraint addition time: {constraint_time:.4f}s")
+        log(f"Constraint addition time: {constraint_time:.4f}s")
         
     return solver, status, iteration
 
@@ -506,7 +510,21 @@ def solve_layout(
     require_full_coverage=False,
     max_hallway_segments=HALLWAY_MAX_SEGMENTS,
     time_limit_seconds=10,
+    model_extension=None,
+    relative_gap_limit=0.10,
+    verbose=True,
 ):
+    """Build and solve the geometry model.
+
+    model_extension is how P2 adds its rules to this same model. It is called as
+    model_extension(model, context) just before solving and returns a dict
+    {penalty_name: expression}. When that dict is not empty the solver minimizes the sum of
+    the penalties instead of the coverage objective below, and the result gains "penalties"
+    and "score". context holds W, L, x, y, w, h (dicts of room variables), room_areas,
+    hallway_slots and occupied_area.
+
+    A room spec may set rotatable=True to allow its size limits to apply turned 90 degrees.
+    """
     if room_specs is None:
         room_specs = DEFAULT_ROOM_SPECS
     if setbacks is None:
@@ -554,10 +572,19 @@ def solve_layout(
     for name, spec in room_specs.items():
         x = model.new_int_var(0, W, f"{name}_x")
         y = model.new_int_var(0, L, f"{name}_y")
-        w = model.new_int_var(spec["min_width"], min(spec["max_width"], W), f"{name}_width")
-        h = model.new_int_var(spec["min_height"], min(spec["max_height"], L), f"{name}_height")
-
-        # Keep the current P1 room-dimension contract unchanged.
+        if spec.get("rotatable"):
+            low = min(spec["min_width"], spec["min_height"])
+            high = max(spec["max_width"], spec["max_height"])
+            w = model.new_int_var(low, min(high, W), f"{name}_width")
+            h = model.new_int_var(low, min(high, L), f"{name}_height")
+            turned = model.new_bool_var(f"{name}_turned")
+            model.add_linear_constraint(w, spec["min_width"], spec["max_width"]).only_enforce_if(~turned)
+            model.add_linear_constraint(h, spec["min_height"], spec["max_height"]).only_enforce_if(~turned)
+            model.add_linear_constraint(w, spec["min_height"], spec["max_height"]).only_enforce_if(turned)
+            model.add_linear_constraint(h, spec["min_width"], spec["max_width"]).only_enforce_if(turned)
+        else:
+            w = model.new_int_var(spec["min_width"], min(spec["max_width"], W), f"{name}_width")
+            h = model.new_int_var(spec["min_height"], min(spec["max_height"], L), f"{name}_height")
 
         model.add(x + w <= W)
         model.add(y + h <= L)
@@ -686,7 +713,23 @@ def solve_layout(
 
     model.add_no_overlap_2d(x_intervals, y_intervals)
 
-    if include_hallway:
+    penalties = {}
+    if model_extension is not None:
+        penalties = model_extension(model, {
+            "W": W,
+            "L": L,
+            "x": x_vars,
+            "y": y_vars,
+            "w": width_vars,
+            "h": height_vars,
+            "room_areas": room_area_vars,
+            "hallway_slots": hallway_slots,
+            "occupied_area": total_occupied_area,
+        }) or {}
+
+    if penalties:
+        model.minimize(sum(penalties.values()))
+    elif include_hallway:
         # Coverage is primary; for equal coverage prefer less hallway area and
         # then fewer segments. This naturally returns full coverage when feasible.
         secondary_scale = len(hallway_slots) + 1
@@ -704,6 +747,8 @@ def solve_layout(
         L=L,
         time_limit_seconds=time_limit_seconds,
         include_hallway=include_hallway,
+        relative_gap_limit=relative_gap_limit,
+        verbose=verbose,
     )
 
     if status == cp_model.INFEASIBLE:
@@ -724,6 +769,10 @@ def solve_layout(
         "rooms": rooms,
         "solver_status": solver.status_name(status),
     }
+
+    if penalties:
+        result["penalties"] = {name: int(solver.value(expr)) for name, expr in penalties.items()}
+        result["score"] = sum(result["penalties"].values())
 
     result["hallway_segments"] = []
 
