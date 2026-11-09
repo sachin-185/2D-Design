@@ -1,0 +1,16 @@
+{
+  "name": "plancraft-2d-monorepo",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "PlanCraft 2D Floor Planning Engine - Monorepo",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "test": "node tests/test_p5_pipeline.js",
+    "frontend:install": "npm --prefix frontend install",
+    "backend:install": "pip install -r backend/requirements.txt",
+    "backend:dev": "python -m uvicorn floorplan.api:app --app-dir backend --reload --port 8000"
+  }
+}
