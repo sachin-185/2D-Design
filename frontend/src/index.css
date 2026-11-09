@@ -1,0 +1,1179 @@
+:root {
+  --bg-cad: #0a0e17;
+  --bg-panel: #0f172a;
+  --bg-panel-subtle: #162032;
+  --bg-card: #1e293b;
+  --bg-input: #0a0f1d;
+  --border-cad: #1e293b;
+  --border-subtle: #243247;
+  --border-active: #38bdf8;
+
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  --accent-cyan: #38bdf8;
+  --accent-cyan-hover: #0ea5e9;
+  --accent-cyan-glow: rgba(56, 189, 248, 0.18);
+  --accent-amber: #f59e0b;
+  --accent-emerald: #10b981;
+  --accent-rose: #f43f5e;
+
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-family);
+  background-color: var(--bg-cad);
+  color: var(--text-main);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cad-studio-container {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-cad);
+  overflow: hidden;
+}
+
+.cad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  min-height: 52px;
+  background-color: var(--bg-panel);
+  border-bottom: 1px solid var(--border-cad);
+  padding: 0 16px;
+  gap: 14px;
+  z-index: 30;
+}
+
+.cad-header-left,
+.cad-header-center,
+.cad-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cad-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 6px;
+}
+
+.cad-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(16, 185, 129, 0.2));
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cyan);
+}
+
+.cad-title-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.cad-brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cad-badge {
+  background-color: var(--accent-cyan-glow);
+  color: var(--accent-cyan);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  letter-spacing: 0.5px;
+}
+
+.cad-subtitle {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.archetype-selector-tabs {
+  display: flex;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.archetype-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.archetype-tab:hover {
+  color: var(--text-main);
+}
+
+.archetype-tab.active {
+  background-color: var(--bg-card);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.arch-name {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.arch-score {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.cad-layer-controls {
+  display: flex;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.layer-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.layer-chip:hover {
+  color: var(--text-main);
+}
+
+.layer-chip.active {
+  background-color: var(--bg-card);
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.history-quick-btns {
+  display: flex;
+  gap: 2px;
+}
+
+.cad-mini-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cad-mini-btn:hover {
+  color: var(--text-main);
+  border-color: var(--border-active);
+}
+
+.unit-toggle-btn {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  color: var(--accent-cyan);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.engine-status-pill {
+  cursor: pointer;
+}
+
+.status-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 5px;
+}
+
+.status-label.local {
+  background-color: rgba(56, 189, 248, 0.1);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.status-label.backend {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--accent-emerald);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.cad-action-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  color: var(--text-muted);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.cad-action-btn:hover {
+  color: var(--text-main);
+}
+
+.file-dropdown-wrapper {
+  position: relative;
+}
+
+.file-trigger-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--accent-cyan);
+  color: #04101e;
+  border: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.cad-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 5px;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-cad);
+  border-radius: 6px;
+  padding: 5px;
+  min-width: 190px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 50;
+}
+
+.cad-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--text-main);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.cad-dropdown-item:hover {
+  background-color: var(--bg-card);
+  color: var(--accent-cyan);
+}
+
+.cad-dropdown-sep {
+  height: 1px;
+  background-color: var(--border-cad);
+  margin: 3px 0;
+}
+
+.cad-studio-main {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 52px);
+  overflow: hidden;
+  position: relative;
+}
+
+.cad-left-panel {
+  width: 260px;
+  min-width: 260px;
+  height: 100%;
+  background-color: var(--bg-panel);
+  border-right: 1px solid var(--border-cad);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.cad-panel-tabs {
+  display: flex;
+  padding: 8px;
+  gap: 4px;
+  background-color: var(--bg-panel-subtle);
+  border-bottom: 1px solid var(--border-cad);
+}
+
+.panel-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.panel-tab-btn.active {
+  background-color: var(--bg-panel);
+  color: var(--accent-cyan);
+  border-color: var(--border-cad);
+  font-weight: 600;
+}
+
+.cad-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tab-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.field-hint {
+  font-size: 9.5px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+  display: block;
+}
+
+.input-row-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.input-row-4col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.cad-input-select,
+.cad-input-num,
+.cad-input-num-compact {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  border-radius: 4px;
+  color: var(--text-main);
+  outline: none;
+}
+
+.cad-input-select:focus,
+.cad-input-num:focus,
+.cad-input-num-compact:focus {
+  border-color: var(--accent-cyan);
+}
+
+.buildable-calc-badge {
+  font-size: 10px;
+  color: var(--accent-cyan);
+  margin-top: 3px;
+}
+
+.cad-feasibility-card {
+  padding: 8px;
+  border-radius: 5px;
+  font-size: 11px;
+}
+
+.cad-feasibility-card.ok {
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.cad-feasibility-card.fail {
+  background-color: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.feasi-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.feasi-head.ok {
+  color: var(--accent-emerald);
+}
+
+.feasi-head.fail {
+  color: var(--accent-rose);
+}
+
+.feasi-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.btn-cad-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+.btn-cad-primary:hover {
+  background: linear-gradient(135deg, #0369a1, #075985);
+}
+
+.btn-add-room-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-cad);
+  color: var(--accent-cyan);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cad-room-rows-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.cad-room-input-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-cad);
+  border-radius: 5px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.room-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-name-field {
+  flex: 1;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+
+.btn-remove-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.btn-remove-icon:hover {
+  color: var(--accent-rose);
+}
+
+.room-card-bottom {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr;
+  gap: 4px;
+}
+
+.room-select-type,
+.room-select-zone,
+.room-select-mode {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.furniture-cat-bar {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.furn-cat-btn {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-cad);
+  color: var(--text-dim);
+  padding: 2px 6px;
+  font-size: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.furn-cat-btn.active {
+  background-color: var(--accent-cyan-glow);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.furniture-library-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.cad-furn-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-cad);
+  border-radius: 4px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cad-furn-card:hover {
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+}
+
+.furn-card-icon {
+  color: var(--accent-cyan);
+}
+
+.furn-card-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.furn-card-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.furn-card-dim {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.cad-workbench-area {
+  flex: 1;
+  height: 100%;
+  background-color: var(--bg-cad);
+  position: relative;
+  overflow: hidden;
+}
+
+.cad-canvas-workbench {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.cad-floating-toolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-cad);
+  padding: 3px 6px;
+  border-radius: 6px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.cad-tool-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.cad-tool-btn:hover {
+  color: var(--accent-cyan);
+  background-color: rgba(56, 189, 248, 0.1);
+}
+
+.tool-sep {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-cad);
+  margin: 0 2px;
+}
+
+.cad-cursor-hud {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-cad);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  z-index: 10;
+}
+
+.hud-sep {
+  color: var(--text-dim);
+}
+
+.cad-viewport-interactive {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.cad-viewport-interactive:active {
+  cursor: grabbing;
+}
+
+.cad-svg-sheet {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cad-note-text {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.setback-text {
+  font-size: 9px;
+  fill: #64748b;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.opening-tag {
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.entrance-label-cad {
+  font-size: 8px;
+  font-weight: 700;
+  fill: #f59e0b;
+  letter-spacing: 0.5px;
+}
+
+.cad-dim-text {
+  font-size: 9px;
+  fill: #94a3b8;
+  font-weight: 600;
+}
+
+.cad-entrance-tag {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.cad-canvas-bottom-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.cad-stat-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.cad-pill {
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border-cad);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.cad-pill.highlight {
+  color: var(--accent-cyan);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.cad-hint-text {
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border-cad);
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.cad-empty-sheet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.cad-empty-message {
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-cad);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 380px;
+  text-align: center;
+}
+
+.cad-empty-message h3 {
+  font-size: 15px;
+  color: var(--accent-rose);
+  margin-bottom: 8px;
+}
+
+.cad-empty-message p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.cad-right-panel {
+  width: 290px;
+  min-width: 290px;
+  height: 100%;
+  background-color: var(--bg-panel);
+  border-left: 1px solid var(--border-cad);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 12px;
+  gap: 12px;
+  z-index: 20;
+}
+
+.cad-right-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-cad);
+}
+
+.inspector-section {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.section-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.section-meta-tag {
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+
+.btn-close-mini {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.inspector-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.input-group-half {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.pin-action-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.btn-pin-solid {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px;
+  background-color: var(--accent-cyan);
+  color: #04101e;
+  border: none;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-unpin-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-cad);
+  color: var(--text-muted);
+  border-radius: 4px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.space-schedule-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.schedule-header-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr 2fr;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--border-cad);
+}
+
+.schedule-data-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr 2fr;
+  font-size: 11px;
+  padding: 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  align-items: center;
+}
+
+.schedule-data-row:hover {
+  background-color: var(--bg-panel-subtle);
+}
+
+.schedule-data-row.active {
+  background-color: var(--accent-cyan-glow);
+  color: var(--accent-cyan);
+}
+
+.schedule-room-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.room-color-tag {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.name-str {
+  text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.schedule-dim-str {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.col-right {
+  text-align: right;
+}
+
+.schedule-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 6px;
+  margin-top: 4px;
+  border-top: 1px dashed var(--border-cad);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.total-label {
+  color: var(--text-main);
+}
+
+.total-val {
+  color: var(--accent-cyan);
+}
+
+.boq-table {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.boq-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  padding: 3px 4px;
+}
+
+.boq-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.boq-material-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+
+.boq-data-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.boq-qty {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.boq-cost {
+  color: var(--text-main);
+  font-weight: 600;
+  min-width: 44px;
+  text-align: right;
+}
+
+.boq-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 6px;
+  margin-top: 4px;
+  border-top: 1px dashed var(--border-cad);
+}
+
+.boq-total-title {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.boq-total-price {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+
+.diagnostics-section {
+  border-bottom: none;
+}
+
+.checker-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.checker-badge.clean {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--accent-emerald);
+}
+
+.checker-badge.notices {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+}
+
+.checker-problems-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checker-clean-message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--accent-emerald);
+  padding: 6px;
+  background-color: rgba(16, 185, 129, 0.08);
+  border-radius: 4px;
+}
+
+.checker-problem-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  background-color: rgba(30, 41, 59, 0.5);
+  border-left: 2px solid var(--accent-amber);
+}
+
+.checker-problem-item.error {
+  border-left-color: var(--accent-rose);
+}
+
+.problem-code {
+  font-weight: 700;
+  color: var(--accent-amber);
+}
+
+.problem-text {
+  color: var(--text-muted);
+}
