@@ -88,7 +88,9 @@ export default function Header({
               onClick={() => onSelectLayout(l.id)}
             >
               <span className="arch-name">{l.archetype}</span>
-              <span className="arch-score">Score: {l.score}</span>
+              <span className="arch-score">
+                {l.coverage_percent != null ? `${l.coverage_percent}% used` : `Score: ${l.score}`}
+              </span>
             </button>
           ))}
         </div>

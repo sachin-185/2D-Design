@@ -5,7 +5,7 @@ import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import RoomSizeTableModal from './components/RoomSizeTableModal';
 import { TEST_INPUTS } from './engine/testInputs';
-import { requestGenerate } from './engine/apiClient';
+import { requestGenerate, requestEdit } from './engine/apiClient';
 import { generateAutoFurniture } from './engine/furniture';
 
 export default function App() {
@@ -18,8 +18,9 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [apiError, setApiError] = useState(null);
   const [isSolving, setIsSolving] = useState(false);
-  const [useBackend, setUseBackend] = useState(false);
-  const [engineSource, setEngineSource] = useState('local-engine');
+  // The real engine (FastAPI backend) is the default; the header pill switches to the offline demo solver.
+  const [useBackend, setUseBackend] = useState(true);
+  const [engineSource, setEngineSource] = useState('backend-api');
 
   const [activeLeftTab, setActiveLeftTab] = useState('site');
   const [unitSystem, setUnitSystem] = useState('imperial');
@@ -93,9 +94,10 @@ export default function App() {
       setLayouts([]);
       setActiveLayoutId(null);
       setSelectedRoom(null);
+      setMessages([]);
       setProblems([
         {
-          code: 'I1',
+          code: err.errorCode || err.status || 'I1',
           message: err.message,
           rooms: [],
           severity: 'error',
@@ -115,7 +117,67 @@ export default function App() {
     setSelectedRoom(room);
   };
 
+  // Backend edit: only the changed sizes are sent; the other plans stay as they are.
+  const applyBackendEdit = async (pinData) => {
+    const current = activeLayout.rooms.find((r) => r.name === pinData.room);
+    const edits = {};
+    if (pinData.width && pinData.width !== current?.w) edits.width = pinData.width;
+    if (pinData.height && pinData.height !== current?.h) edits.height = pinData.height;
+
+    const otherPins = (input.pins || []).filter((p) => p.room !== pinData.room);
+    if (Object.keys(edits).length === 0) {
+      // Only the lock changed: remember it for the next edit, no re-solve needed.
+      const pin = { ...(input.pins || []).find((p) => p.room === pinData.room), room: pinData.room };
+      if (pinData.locked) pin.locked = true; else delete pin.locked;
+      const keep = Object.keys(pin).length > 1 ? [pin] : [];
+      const updatedInput = { ...input, pins: [...otherPins, ...keep] };
+      setInput(updatedInput);
+      pushHistory(updatedInput);
+      return;
+    }
+
+    setIsSolving(true);
+    setApiError(null);
+    try {
+      const lock = otherPins.filter((p) => p.locked).map((p) => p.room);
+      // The room being resized cannot also stay frozen, so its own lock is not sent.
+      const sentInput = {
+        ...input,
+        pins: (input.pins || []).map((p) => {
+          if (p.room !== pinData.room) return p;
+          const { locked, ...rest } = p;
+          return rest;
+        }),
+      };
+      const response = await requestEdit(sentInput, activeLayout, { [pinData.room]: edits }, lock);
+      const edited = response.data.layouts[0];
+      const updatedInput = response.data.input || input;
+      if (pinData.locked) {
+        // The engine unlocks a room that was just edited; keep the user's lock for later edits.
+        updatedInput.pins = updatedInput.pins.map((p) => (p.room === pinData.room ? { ...p, locked: true } : p));
+      }
+      setLayouts((prev) => prev.map((l) => (l.id === activeLayout.id
+        ? { ...edited, id: l.id, variantNumber: l.variantNumber, archetype: `${l.archetype.replace(/ \(edited\)$/, '')} (edited)` }
+        : l)));
+      setInput(updatedInput);
+      pushHistory(updatedInput);
+      setMessages(response.data.messages || []);
+      setProblems(response.data.problems || []);
+      setEngineSource(response.source);
+      setSelectedRoom(edited.rooms.find((r) => r.name === pinData.room) || null);
+    } catch (err) {
+      // Keep the current plans on screen and explain why the edit cannot be built.
+      setProblems([{ code: err.errorCode || 'EDIT', message: err.message, rooms: [pinData.room], severity: 'error' }]);
+    } finally {
+      setIsSolving(false);
+    }
+  };
+
   const handleApplyPin = (pinData) => {
+    if (useBackend && activeLayout && !pinData.clear) {
+      applyBackendEdit(pinData);
+      return;
+    }
     let existingPins = input.pins ? [...input.pins] : [];
 
     if (pinData.clear) {
@@ -274,7 +336,14 @@ export default function App() {
           onChangeRoomFlooring={(roomName, matId) => {
             setCustomRoomFlooring((prev) => ({ ...prev, [roomName]: matId }));
           }}
-          problems={problems} />
+          problems={[
+            ...problems,
+            // engine notes for the plan on screen, e.g. a relaxed zone preference or no hallway
+            ...(activeLayout?.messages || [])
+              .filter((m) => !m.startsWith('Warning'))
+              .map((m) => ({ code: 'Note', message: m, rooms: [], severity: 'info' })),
+            ...messages.map((m) => ({ code: 'Note', message: m, rooms: [], severity: 'info' })),
+          ]} />
       </main>
 
       <RoomSizeTableModal isOpen={isRoomTableOpen} onClose={() => setIsRoomTableOpen(false)} />

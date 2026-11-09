@@ -11,12 +11,14 @@ import logging
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from pydantic import BaseModel
 
 try:
-    from floorplan.schema import FloorPlanInput, FloorPlanOutput, ErrorResponse, EditLayoutRequest
+    from floorplan.schema import FloorPlanInput, FloorPlanOutput, ErrorResponse, EditLayoutRequest, Layout
     from floorplan.runner import execute_pipeline, execute_engine_request, execute_engine_edit
 except ModuleNotFoundError:
-    from schema import FloorPlanInput, FloorPlanOutput, ErrorResponse, EditLayoutRequest
+    from schema import FloorPlanInput, FloorPlanOutput, ErrorResponse, EditLayoutRequest, Layout
     from runner import execute_pipeline, execute_engine_request, execute_engine_edit
 
 log = logging.getLogger("floorplan.api")
@@ -180,3 +182,53 @@ def edit_layout_endpoint(payload: EditLayoutRequest):
             message="Editing needs P2's engine.py, which is not loaded (see /health).",
         ))
     return _respond(execute_engine_edit(payload, edit_layout))
+
+
+# --- SVG export (P5's floorplan/render.py) ---------------------------------------------------------
+
+try:
+    from floorplan.render import render_layout_to_svg
+except ImportError as e:
+    _note("render", e)
+    render_layout_to_svg = None
+
+DOOR_WIDTH_FT = 3
+
+
+class RenderRequest(BaseModel):
+    input: FloorPlanInput
+    layout: Layout
+
+
+def _drawing_doors(layout: dict) -> list:
+    """Engine doors give the middle of the wall; render.py wants the door's start and its wall direction."""
+    boxes = {r["name"]: r for r in layout["rooms"]}
+    boxes.update({h["id"]: h for h in layout.get("hallway_segments", [])})
+    doors = []
+    for door in layout.get("doors", []):
+        a, b = door["between"]
+        box = boxes.get(b if a in ("outside", "exterior") else a) or boxes.get(b)
+        vertical = bool(box) and door["x"] in (box["x"], box["x"] + box["w"])
+        half = DOOR_WIDTH_FT / 2
+        doors.append({
+            **door,
+            "orientation": "vertical" if vertical else "horizontal",
+            "x": door["x"] if vertical else door["x"] - half,
+            "y": door["y"] - half if vertical else door["y"],
+            "width": DOOR_WIDTH_FT,
+        })
+    return doors
+
+
+@app.post("/render", tags=["Drawing"], response_class=Response,
+          responses={200: {"content": {"image/svg+xml": {}}}})
+def render_endpoint(payload: RenderRequest):
+    """One layout as an SVG drawing. Body: {"input": <FloorPlanInput>, "layout": <one returned layout>}."""
+    if render_layout_to_svg is None:
+        return _respond(ErrorResponse(error_code="NO_RENDERER_AVAILABLE",
+                                      message="floorplan/render.py is not loaded (see /health)."))
+    inp = payload.input.model_dump()
+    layout = payload.layout.model_dump()
+    layout["doors"] = _drawing_doors(layout)
+    svg = render_layout_to_svg(layout, plot=tuple(inp["plot"]), setbacks=inp["setbacks"], entrance=inp["entrance"])
+    return Response(content=svg, media_type="image/svg+xml")

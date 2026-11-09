@@ -94,3 +94,13 @@ Built from `p4-checker` (P1 + P2 + P4) with `p3-checker` merged in.
 - Engine: in `edit_layout`, a pin with `"locked": true` stays in place like a room named in `lock`. Kept locks are written back to `input.pins` so they carry over to the next edit, and editing a locked room unlocks it.
 - Checked: 323 tests pass. `/health` loads the engine, solver and checker. `/generate` on all 24 inputs gives the expected status except t04 (see above), and returns 3 layouts with `archetype`, `penalties` and `coverage_percent`. `/edit-layout` keeps a locked room in place and returns `nearest` for an impossible size.
 - Still missing: P5 has pushed no code. Windows, F2 to F4, H5 and H8 are unchanged.
+
+# Full integration with P5's frontend (branch integration, 9 Nov, second pass)
+
+- Merged the latest `p4-checker` (P4's alias sizes), `p3-checker` (tests moved to `tests/`) and `p5`.
+- P5's `floorplan/api.py` and `floorplan/config.py` were stand-ins with fixed demo layouts, so P3's real versions are kept. P5's `render.py` is now served as `POST /render`. P5's `floorplan/doors.py` is not used by the backend.
+- Frontend now uses the real backend by default (through Vite's `/api` proxy). The in-browser solver stays as an offline demo behind the header pill.
+- `frontend/src/engine/apiClient.js` converts engine doors (middle of the wall) to the canvas format (start point and orientation), adds windows with P5's `placeWindows` because the engine places none, reads P3's error format, and calls `/edit-layout`.
+- Resizing a room in the right sidebar calls `/edit-layout` and replaces only the plan on screen. An impossible size keeps the plan and shows the nearest size that works.
+- `frontend/src/engine/contracts.js` alias sizes now match `config.py` (dining and study use living sizes; utility, store, storage, laundry use kitchen sizes), so the sidebar limits match the backend.
+- Checked in the browser: P5's 10 presets give 3 plans each except Test 9, a real conflict (bedroom must SW and kitchen must SE leave only about 10 ft of the south wall, and living needs 12 ft there for the entrance). P5 should mark it as a conflict example.
