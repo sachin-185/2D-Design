@@ -210,7 +210,7 @@ def checked_layout(inp: Dict[str, Any], variant: Dict[str, Any], table: Dict[str
     layout = {
         "score": variant["score"],
         "rooms": [
-            {"name": name, "type": resolve_room_type(types[name]),
+            {"name": name, "type": types[name],  # the user's own type, e.g. dining (P3 contract)
              "x": room["x"], "y": room["y"], "w": room["width"], "h": room["height"]}
             for name, room in variant["rooms"].items()
         ],
@@ -383,16 +383,23 @@ def edit_layout(
         return {"status": "invalid", "layouts": [], "messages": [f"Unknown room: {unknown[0]}"]}
 
     pins = {pin["room"]: dict(pin) for pin in inp.get("pins", [])}
+    # A pin with "locked": true stays where it is, the same as a room named in lock.
+    lock = set(lock or []) | {name for name, pin in pins.items() if pin.get("locked")}
+    unlocked = sorted(lock & set(edits))  # an edited room cannot also stay frozen
+    kept = sorted(lock - set(edits))
     for room, values in edits.items():
-        pins.setdefault(room, {"room": room}).update(values)
+        pin = pins.setdefault(room, {"room": room})
+        pin.update(values)
+        pin.pop("locked", None)
+    for name in kept:  # written back so the lock carries over to the next edit
+        pins.setdefault(name, {"room": name})["locked"] = True
     new_inp = {**inp, "pins": list(pins.values())}
 
     placed = {r["name"]: r for r in layout["rooms"]}
     previous = {name: {"x": r["x"], "y": r["y"]} for name, r in placed.items()}
-    kept = sorted(set(lock or []) - set(edits))  # an edited room cannot also stay frozen
     locked = {name: {"x": placed[name]["x"], "y": placed[name]["y"],
                      "width": placed[name]["w"], "height": placed[name]["h"]} for name in kept}
-    messages = [f"{name} was edited, so it was unlocked." for name in sorted(set(lock or []) & set(edits))]
+    messages = [f"{name} was edited, so it was unlocked." for name in unlocked]
 
     table = room_size_table(new_inp)
     result = {}
