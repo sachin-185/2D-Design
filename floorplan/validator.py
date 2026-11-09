@@ -19,16 +19,32 @@ Layout format:
   need to change.
 """
 
-# Example values only. The real table comes from P3's config.
+# Room sizes agreed with P3 (her config.py, confirmed 2026-11-05).
+# This is the checker's own copy on purpose: if config.py has a wrong number,
+# the solver uses it but the checker does not, so H2 still catches the mistake.
 # Each entry: (min [w, h], max [w, h]) in feet.
-SIZE_TABLE = {
+BASE_SIZES = {
     "living": ([12, 12], [20, 20]),
-    "dining": ([10, 10], [16, 16]),
     "kitchen": ([8, 8], [12, 12]),
     "bedroom": ([10, 10], [16, 16]),
     "bathroom": ([5, 7], [8, 10]),
-    "utility": ([4, 4], [8, 8]),
-    "store": ([4, 4], [8, 8]),
+}
+
+# Secondary room types use the size limits of a base type.
+# Only sizes are shared: the connection rules still see the original type.
+SIZE_ALIASES = {
+    "dining": "living",
+    "study": "living",
+    "utility": "kitchen",
+    "store": "kitchen",
+    "storage": "kitchen",
+    "laundry": "kitchen",
+}
+
+SIZE_TABLE = {
+    **BASE_SIZES,
+    **{alias: (list(BASE_SIZES[base][0]), list(BASE_SIZES[base][1]))
+       for alias, base in SIZE_ALIASES.items()},
 }
 
 

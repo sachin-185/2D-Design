@@ -37,7 +37,7 @@
       "description": "Rooms the user wants. Names must be unique, for example bedroom1 and bedroom2.",
       "type": "array",
       "minItems": 1,
-      "maxItems": 12,
+      "maxItems": 10,
       "items": {
         "type": "object",
         "required": ["name", "type"],
@@ -45,8 +45,8 @@
         "properties": {
           "name": {"type": "string", "minLength": 1},
           "type": {
-            "description": "Room type. Decides the default min, preferred and max sizes from the room size table.",
-            "enum": ["living", "dining", "kitchen", "bedroom", "bathroom", "utility", "store"]
+            "description": "Room type. Decides the default min, preferred and max sizes from the room size table. dining and study use the living room sizes; utility, store, storage and laundry use the kitchen sizes.",
+            "enum": ["living", "kitchen", "bedroom", "bathroom", "dining", "study", "utility", "store", "storage", "laundry"]
           },
           "zone": {
             "description": "Preferred position on the 3x3 zone map of the buildable area, in real-world directions. Mid is the center cell.",
