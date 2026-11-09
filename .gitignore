@@ -1,45 +1,28 @@
-
-# Python virtual environments
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
 .venv/
 venv/
 env/
-
-# Python cache and compiled files
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Test and coverage artifacts
 .pytest_cache/
 .coverage
 .coverage.*
 htmlcov/
-
-# Type checking and linting caches
 .mypy_cache/
 .ruff_cache/
-
-# Environment variables and secrets
 .env
 .env.*
 !.env.example
-
-# Build and packaging artifacts
 build/
-dist/
 *.egg-info/
-
-# IDE and editor settings
 .vscode/
 .idea/
-
-# Operating system files
 .DS_Store
 Thumbs.db
-
-# Logs
 *.log
-
-# Temporary files
 *.tmp
 *.bak
