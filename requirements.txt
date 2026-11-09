@@ -2,10 +2,12 @@ absl-py==2.5.1
 annotated-types==0.8.0
 attrs==26.1.0
 colorama==0.4.6
+fastapi==0.162.2
+httpx==0.28.1
 immutabledict==4.3.1
 iniconfig==2.3.1
-jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
+jsonschema==4.26.0
 numpy==2.5.4
 ortools==9.15.6755
 packaging==26.3
@@ -23,3 +25,4 @@ six==1.17.0
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 tzdata==2026.5
+uvicorn==0.54.0

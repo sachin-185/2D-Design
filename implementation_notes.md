@@ -82,3 +82,15 @@ python -m pytest -q
 python draw_plans.py
 python -m floorplan.json_runner tests/TestCases/t01_standard.json
 ```
+
+# Team integration (branch integration, 9 Nov)
+
+Built from `p4-checker` (P1 + P2 + P4) with `p3-checker` merged in.
+
+- P3's `config.py` and `schema.py` replace the older copies. Its `api.py` and `runner.py` are added as is.
+- P3's test files and `fakes.py` were uploaded into `floorplan/`. They import `tests.fakes`, so they now live in `tests/`.
+- `requirements.txt` adds `fastapi`, `uvicorn` and `httpx` (httpx is only for FastAPI's TestClient).
+- Engine: output rooms keep the user's type (`dining` stays `dining`), as P3's contract asks.
+- Engine: in `edit_layout`, a pin with `"locked": true` stays in place like a room named in `lock`. Kept locks are written back to `input.pins` so they carry over to the next edit, and editing a locked room unlocks it.
+- Checked: 323 tests pass. `/health` loads the engine, solver and checker. `/generate` on all 24 inputs gives the expected status except t04 (see above), and returns 3 layouts with `archetype`, `penalties` and `coverage_percent`. `/edit-layout` keeps a locked room in place and returns `nearest` for an impossible size.
+- Still missing: P5 has pushed no code. Windows, F2 to F4, H5 and H8 are unchanged.

@@ -265,6 +265,13 @@ def test_reachability_only_rooms_are_connected():
         assert {"dining", "utility"} <= names
 
 
+def test_output_keeps_the_users_room_type():
+    result = solve_request(load("t24_dining_utility"), time_limit_seconds=SECONDS)
+    types = {r["name"]: r["type"] for r in load("t24_dining_utility")["rooms"]}
+    for layout in result["layouts"]:
+        assert {r["name"]: r["type"] for r in layout["rooms"]} == types
+
+
 # --- edit and re-solve ----------------------------------------------------------------------------
 
 def test_edit_pins_the_size_and_locks_the_accepted_room(t01):
@@ -281,6 +288,23 @@ def test_edit_pins_the_size_and_locks_the_accepted_room(t01):
     assert {"room": "bedroom", "width": wanted} in result["input"]["pins"]
     assert validate_all(result["input"], edited, size_table=_table(inp)) == [] or all(
         p["severity"] == "warning" for p in validate_all(result["input"], edited, size_table=_table(inp)))
+
+
+def test_a_locked_pin_stays_put_and_the_lock_carries_to_the_next_edit(t01):
+    inp = {**load("t01_standard"), "pins": [{"room": "living", "locked": True}]}
+    layout = t01["layouts"][0]
+    before = room(layout, "living")
+    wanted = 12 if room(layout, "bedroom")["w"] != 12 else 11
+    first = edit_layout(inp, layout, {"bedroom": {"width": wanted}}, time_limit_seconds=SECONDS)
+    assert first["status"] == "valid", first["messages"]
+    assert room(first["layouts"][0], "living") == before
+    assert {"room": "living", "locked": True} in first["input"]["pins"]
+
+    # editing a locked room unlocks it
+    second = edit_layout(first["input"], first["layouts"][0], {"living": {"width": before["w"]}},
+                         time_limit_seconds=SECONDS)
+    assert "living was edited, so it was unlocked." in second["messages"]
+    assert all(not p.get("locked") for p in second["input"]["pins"] if p["room"] == "living")
 
 
 def test_edit_moves_other_rooms_as_little_as_possible(t01):
