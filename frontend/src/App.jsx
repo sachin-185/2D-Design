@@ -259,10 +259,8 @@ export default function App() {
         <div className="cad-workbench-area">
           {activeLayout ? (
             <Canvas layout={activeLayout}
-              input={input} selectedRoom={selectedRoom}
-              onSelectRoom={handleSelectRoom}
-              furniture={furniture} showGrid={showGrid}
-              showDoors={showDoors}
+              input={input} selectedRoom={selectedRoom} onSelectRoom={handleSelectRoom}
+              furniture={furniture} showGrid={showGrid} showDoors={showDoors}
               showWindows={showWindows} showFurniture={showFurniture}
               showDimensions={showDimensions}
               showLabels={showLabels} unitSystem={unitSystem} />
@@ -274,8 +272,7 @@ export default function App() {
                 <button
                   type="button"
                   className="btn-cad-primary"
-                  onClick={() => executeSolve(TEST_INPUTS[0].input)}
-                >
+                  onClick={() => executeSolve(TEST_INPUTS[0].input)}>
                   Load Standard 4-Room Preset
                 </button>
               </div>
@@ -283,19 +280,15 @@ export default function App() {
           )}
         </div>
 
-        <RightSidebar
-          layout={activeLayout}
-          input={input}
-          selectedRoom={selectedRoom}
-          onSelectRoom={handleSelectRoom}
+        <RightSidebar layout={activeLayout} input={input}
+          selectedRoom={selectedRoom} onSelectRoom={handleSelectRoom}
           onApplyPin={handleApplyPin}
           unitSystem={unitSystem}
           customRoomFlooring={customRoomFlooring}
           onChangeRoomFlooring={(roomName, matId) => {
             setCustomRoomFlooring((prev) => ({ ...prev, [roomName]: matId }));
           }}
-          problems={problems}
-        />
+          problems={problems} />
       </main>
 
       <RoomSizeTableModal
