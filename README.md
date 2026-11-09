@@ -1,4 +1,4 @@
-# PlanCraft 2D - Floor Planning Engine (P5 Role & Team Integration)
+# PlanCraft 2D - Floor Planning Engine
 
 A modern, high-precision architectural floor planning front end and SVG vector rendering engine built with React, Vite, and standard SVG. Fully aligned with the team's pipeline contracts (P1, P2, P3, P4, P5).
 
