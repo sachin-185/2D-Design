@@ -76,9 +76,13 @@ export default function Canvas({
     }
 
     if (svgRef.current) {
+      // rect already includes pan and zoom; the viewBox then fits the drawing inside it, centred.
       const rect = svgRef.current.getBoundingClientRect();
-      const mouseSvgX = (e.clientX - rect.left - pan.x) / zoom;
-      const mouseSvgY = (e.clientY - rect.top - pan.y) / zoom;
+      const fit = Math.min(rect.width / svgWidth, rect.height / svgHeight);
+      const offsetX = rect.left + (rect.width - svgWidth * fit) / 2;
+      const offsetY = rect.top + (rect.height - svgHeight * fit) / 2;
+      const mouseSvgX = (e.clientX - offsetX) / fit;
+      const mouseSvgY = (e.clientY - offsetY) / fit;
       const ftX = Math.round(((mouseSvgX - bX) / scale) * 10) / 10;
       const ftY = Math.round(((bY + bH - mouseSvgY) / scale) * 10) / 10;
       setHoverCoords({ x: ftX, y: ftY });
@@ -93,7 +97,7 @@ export default function Canvas({
   };
 
   const fitToScreen = () => {
-    setZoom(0.85);
+    setZoom(1); // the viewBox already fits the whole plot at 100%
     setPan({ x: 0, y: 0 });
   };
 
@@ -159,8 +163,10 @@ export default function Canvas({
         <svg
           ref={svgRef}
           className="cad-svg-sheet"
-          width={svgWidth}
-          height={svgHeight}
+          // The sheet fills the viewport box (CSS 100%); the viewBox scales the whole plot to fit it,
+          // so tall or wide plots are never cut off. Zoom 100% = whole plot visible.
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          preserveAspectRatio="xMidYMid meet"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: 'center center',
