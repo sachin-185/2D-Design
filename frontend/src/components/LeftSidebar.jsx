@@ -87,7 +87,7 @@ export default function LeftSidebar({
     setSelectedPresetId(presetId);
     const found = TEST_INPUTS.find((p) => p.id === presetId);
     if (found) {
-      onChangeInput(JSON.parse(JSON.stringify(found.input)));
+      onChangeInput(JSON.parse(JSON.stringify(found.input)), { solve: true }); // a new preset needs a new plan
     }
   };
 

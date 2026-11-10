@@ -13,6 +13,7 @@ from floorplan.preferences import (
     solve_with_preferences,
     to_drawing_side,
     to_drawing_zone,
+    zone_contains,
 )
 from floorplan.schema import FloorPlanOutput
 from validate_all import validate_all
@@ -136,11 +137,12 @@ def test_real_world_sides_turn_with_north():
 def test_must_zone_holds_on_a_turned_plot():
     result = solve_request(load("t09_rotated"), time_limit_seconds=SECONDS)  # north left, bedroom must be NW
     assert result["status"] == "valid"
-    zone = calculate_zone_bounds(24, 32, "SW")  # real NW is the drawing's bottom-left
+    # real NW is the drawing's bottom-left (SW) third: centre x <= 24/3, centre y <= 32/3
     for layout in result["layouts"]:
         bedroom = room(layout, "bedroom")
-        assert 2 * zone["x_min"] <= 2 * bedroom["x"] + bedroom["w"] <= 2 * zone["x_max"]
-        assert 2 * zone["y_min"] <= 2 * bedroom["y"] + bedroom["h"] <= 2 * zone["y_max"]
+        assert 3 * (2 * bedroom["x"] + bedroom["w"]) <= 2 * 24
+        assert 3 * (2 * bedroom["y"] + bedroom["h"]) <= 2 * 32
+        assert zone_contains({**bedroom, "width": bedroom["w"], "height": bedroom["h"]}, "SW", 24, 32)
         assert room(layout, "living")["x"] == 0  # entrance N is the drawing's left edge
 
 
@@ -327,3 +329,42 @@ def test_impossible_edit_gives_the_reason_and_the_nearest_value_that_works(t01):
 def test_editing_an_unknown_room_is_an_error(t01):
     result = edit_layout(load("t01_standard"), t01["layouts"][0], {"ghost": {"width": 12}})
     assert result["status"] == "invalid" and "ghost" in result["messages"][0]
+
+
+
+# --- found by the full layout audit (10 Nov) ------------------------------------------------------
+
+@pytest.mark.parametrize("name", ["t02_tight", "t11_attached_bathroom", "t13_two_suites", "t22_two_bed_compact"])
+def test_every_door_fits_inside_its_wall(name):
+    """A 3 ft door must sit wholly on the shared wall, also when the wall is exactly 3 ft long."""
+    result = solve_request(load(name), time_limit_seconds=SECONDS)
+    for layout in result["layouts"]:
+        boxes = {r["name"]: r for r in layout["rooms"]}
+        boxes.update({h["id"]: h for h in layout["hallway_segments"]})
+        for door in layout["doors"]:
+            a, b = door["between"]
+            if a == OUTSIDE:
+                continue
+            (x1, y1), (x2, y2) = shared_wall(boxes[a], boxes[b])
+            if x1 == x2:
+                assert door["x"] == x1 and y1 + 1.5 <= door["y"] <= y2 - 1.5, (door, (x1, y1, x2, y2))
+            else:
+                assert door["y"] == y1 and x1 + 1.5 <= door["x"] <= x2 - 1.5, (door, (x1, y1, x2, y2))
+
+
+def test_must_zone_uses_exact_thirds():
+    """26 x 31 buildable: the W zone's rows are 10.33 to 20.67 ft, so a centre at y = 10 is not in W."""
+    inp = {"plot": [32, 38], "setbacks": {"front": 4, "back": 3, "left": 3, "right": 3},
+           "entrance": "W", "north": "up",
+           "rooms": [{"name": "living", "type": "living", "zone": "W", "zone_mode": "must"},
+                     {"name": "study", "type": "study", "zone": "NW", "zone_mode": "try"},
+                     {"name": "kitchen", "type": "kitchen", "zone": "SE", "zone_mode": "try"},
+                     {"name": "bedroom", "type": "bedroom", "zone": "NE", "zone_mode": "try"},
+                     {"name": "bathroom", "type": "bathroom"}]}
+    result = solve_request(inp, time_limit_seconds=SECONDS)
+    assert result["status"] == "valid"
+    for layout in result["layouts"]:
+        living = room(layout, "living")
+        assert zone_contains({**living, "width": living["w"], "height": living["h"]}, "W", 26, 31)
+        assert 3 * (2 * living["y"] + living["h"]) >= 2 * 31
+    assert not zone_contains({"x": 2, "y": 4, "width": 12, "height": 12}, "W", 26, 31)  # centre (8, 10)

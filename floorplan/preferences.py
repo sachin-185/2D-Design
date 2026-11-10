@@ -102,19 +102,20 @@ def add_must_zone_constraint(
 ) -> None:
     """Rule H7: Enforce that the room's geometric center falls inside the specified zone.
 
-    Using scaled integer coordinates (multiplied by 2) to maintain exact whole number arithmetic:
-        2 * center_x = 2 * x + width
-        2 * center_y = 2 * y + height
+    The zone is an exact third of the buildable width and depth. Whole-number arithmetic, scaled by 6:
+        lo * W / 3 <= center_x = (2 * x + width) / 2 <= hi * W / 3
+        <=>  2 * lo * W <= 3 * (2 * x + width) <= 2 * hi * W
+    (Rounding the thirds to whole feet let a centre at y = 10 count as the middle row of a 31 ft plot,
+    whose true boundary is 10.33 ft.)
     """
-    bounds = calculate_zone_bounds(buildable_width, buildable_depth, zone_name)
+    if zone_name not in ZONE_MAP:
+        raise ValueError(f"Unknown zone '{zone_name}'. Must be one of: {list(ZONE_MAP.keys())}")
+    (x_lo, x_hi), (y_lo, y_hi) = ZONE_MAP[zone_name]
 
-    # 2 * x_min <= 2 * x + width <= 2 * x_max
-    model.add(2 * x_var + w_var >= 2 * bounds["x_min"])
-    model.add(2 * x_var + w_var <= 2 * bounds["x_max"])
-
-    # 2 * y_min <= 2 * y + height <= 2 * y_max
-    model.add(2 * y_var + h_var >= 2 * bounds["y_min"])
-    model.add(2 * y_var + h_var <= 2 * bounds["y_max"])
+    model.add(3 * (2 * x_var + w_var) >= 2 * x_lo * buildable_width)
+    model.add(3 * (2 * x_var + w_var) <= 2 * x_hi * buildable_width)
+    model.add(3 * (2 * y_var + h_var) >= 2 * y_lo * buildable_depth)
+    model.add(3 * (2 * y_var + h_var) <= 2 * y_hi * buildable_depth)
 
 
 def add_try_zone_penalty(
@@ -435,11 +436,11 @@ def add_archetype_constraints(
 
 def zone_contains(room: Dict[str, int], zone_name: str, buildable_width: int, buildable_depth: int) -> bool:
     """Whether a solved room's center lies in a zone cell of the drawing (same test as rule H7)."""
-    bounds = calculate_zone_bounds(buildable_width, buildable_depth, zone_name)
-    cx2 = 2 * room["x"] + room["width"]
-    cy2 = 2 * room["y"] + room["height"]
-    return (2 * bounds["x_min"] <= cx2 <= 2 * bounds["x_max"]
-            and 2 * bounds["y_min"] <= cy2 <= 2 * bounds["y_max"])
+    (x_lo, x_hi), (y_lo, y_hi) = ZONE_MAP[zone_name]
+    cx6 = 3 * (2 * room["x"] + room["width"])
+    cy6 = 3 * (2 * room["y"] + room["height"])
+    return (2 * x_lo * buildable_width <= cx6 <= 2 * x_hi * buildable_width
+            and 2 * y_lo * buildable_depth <= cy6 <= 2 * y_hi * buildable_depth)
 
 
 def solve_with_preferences(

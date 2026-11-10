@@ -1177,3 +1177,34 @@ body, html {
 .problem-text {
   color: var(--text-muted);
 }
+
+/* Shown over the canvas when the inputs no longer match the plan on screen, or while solving. */
+.cad-stale-banner {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  background: rgba(15, 23, 42, 0.95);
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cad-stale-banner.solving {
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #7dd3fc;
+}
+
+.cad-stale-banner .btn-cad-primary {
+  padding: 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}

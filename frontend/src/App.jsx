@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import Canvas from './components/Canvas';
 import LeftSidebar from './components/LeftSidebar';
@@ -40,8 +40,16 @@ export default function App() {
 
   const [isRoomTableOpen, setIsRoomTableOpen] = useState(false);
 
+  // The input the plans on screen were solved for. Plans are always drawn with this input, so changing a
+  // field (or picking a preset) can never draw old rooms inside a new plot.
+  const [solvedInput, setSolvedInput] = useState(null);
+  const latestRequest = useRef(0); // a slow older answer must not replace a newer one
+  const inputChanged = solvedInput !== null && JSON.stringify(solvedInput) !== JSON.stringify(input);
+
   const activeLayout = layouts.find((l) => l.id === activeLayoutId) || layouts[0] || null;
 
+  // Re-furnish whenever room positions change, not only when the layout id or room count changes.
+  const roomsKey = (activeLayout?.rooms || []).map((r) => `${r.name}:${r.x},${r.y},${r.w},${r.h}`).join('|');
   useEffect(() => {
     if (activeLayout && activeLayout.rooms) {
       const autoItems = generateAutoFurniture(activeLayout.rooms);
@@ -49,7 +57,7 @@ export default function App() {
     } else {
       setFurniture([]);
     }
-  }, [activeLayout?.id, activeLayout?.rooms?.length]);
+  }, [activeLayout?.id, roomsKey]);
 
   const pushHistory = (newInput) => {
     setHistory((prev) => {
@@ -61,13 +69,16 @@ export default function App() {
 
   const executeSolve = useCallback(async (customInput) => {
     const currentInput = customInput || input;
+    const requestId = ++latestRequest.current;
     setIsSolving(true);
     setApiError(null);
 
     try {
       const response = await requestGenerate(currentInput, useBackend);
+      if (requestId !== latestRequest.current) return; // a newer solve was started meanwhile
       const data = response.data;
 
+      setSolvedInput(currentInput);
       setLayouts(data.layouts || []);
       setFeasibility(data.feasibility || null);
       setProblems(data.problems || []);
@@ -89,8 +100,10 @@ export default function App() {
         setSelectedRoom(null);
       }
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       console.error('Solve failed:', err);
       setApiError(err.message);
+      setSolvedInput(currentInput);
       setLayouts([]);
       setActiveLayoutId(null);
       setSelectedRoom(null);
@@ -104,7 +117,7 @@ export default function App() {
         },
       ]);
     } finally {
-      setIsSolving(false);
+      if (requestId === latestRequest.current) setIsSolving(false);
     }
   }, [input, useBackend, selectedRoom]);
 
@@ -132,10 +145,12 @@ export default function App() {
       const keep = Object.keys(pin).length > 1 ? [pin] : [];
       const updatedInput = { ...input, pins: [...otherPins, ...keep] };
       setInput(updatedInput);
+      setSolvedInput(updatedInput); // a lock does not change the plan on screen
       pushHistory(updatedInput);
       return;
     }
 
+    const requestId = ++latestRequest.current;
     setIsSolving(true);
     setApiError(null);
     try {
@@ -150,6 +165,7 @@ export default function App() {
         }),
       };
       const response = await requestEdit(sentInput, activeLayout, { [pinData.room]: edits }, lock);
+      if (requestId !== latestRequest.current) return;
       const edited = response.data.layouts[0];
       const updatedInput = response.data.input || input;
       if (pinData.locked) {
@@ -160,20 +176,28 @@ export default function App() {
         ? { ...edited, id: l.id, variantNumber: l.variantNumber, archetype: `${l.archetype.replace(/ \(edited\)$/, '')} (edited)` }
         : l)));
       setInput(updatedInput);
+      setSolvedInput(updatedInput);
       pushHistory(updatedInput);
       setMessages(response.data.messages || []);
       setProblems(response.data.problems || []);
       setEngineSource(response.source);
       setSelectedRoom(edited.rooms.find((r) => r.name === pinData.room) || null);
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       // Keep the current plans on screen and explain why the edit cannot be built.
       setProblems([{ code: err.errorCode || 'EDIT', message: err.message, rooms: [pinData.room], severity: 'error' }]);
     } finally {
-      setIsSolving(false);
+      if (requestId === latestRequest.current) setIsSolving(false);
     }
   };
 
   const handleApplyPin = (pinData) => {
+    if (inputChanged && !pinData.clear) {
+      // The plan on screen belongs to the old input; editing it against the new input would mix the two.
+      setProblems([{ code: 'STALE', message: 'The inputs changed since this plan was solved. Press Solve Layouts first.',
+        rooms: [], severity: 'error' }]);
+      return;
+    }
     if (useBackend && activeLayout && !pinData.clear) {
       applyBackendEdit(pinData);
       return;
@@ -197,11 +221,13 @@ export default function App() {
     executeSolve(updatedInput);
   };
 
-  const handleChangeInput = (newInput) => {
+  // options.solve: solve at once (used when a preset is picked, since the old plan no longer applies).
+  const handleChangeInput = (newInput, options = {}) => {
     setInput(newInput);
     setSelectedRoom(null);
     setApiError(null);
     pushHistory(newInput);
+    if (options.solve) executeSolve(newInput);
   };
 
   const handleUndo = () => {
@@ -312,20 +338,42 @@ export default function App() {
           onAutoFurnish={handleAutoFurnish} />
 
         <div className="cad-workbench-area">
+          {(inputChanged || isSolving) && (
+            <div className={`cad-stale-banner ${isSolving ? 'solving' : ''}`}>
+              {isSolving ? (
+                <span>Solving layouts…</span>
+              ) : (
+                <>
+                  <span>Inputs changed. The drawing still shows the last solved plan.</span>
+                  <button type="button" className="btn-cad-primary" onClick={() => executeSolve(input)}>
+                    Solve now
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {activeLayout ? (
+            // Drawn with the input it was solved for, never with newer unsolved input.
             <Canvas layout={activeLayout}
-              input={input} selectedRoom={selectedRoom} onSelectRoom={handleSelectRoom}
+              input={solvedInput || input} selectedRoom={selectedRoom} onSelectRoom={handleSelectRoom}
               furniture={furniture} showGrid={showGrid} showDoors={showDoors}
               showWindows={showWindows} showFurniture={showFurniture}
               showDimensions={showDimensions} showLabels={showLabels} unitSystem={unitSystem} />
           ) : (
             <div className="cad-empty-sheet">
               <div className="cad-empty-message">
-                <h3>Drafting Solution Infeasible</h3>
-                <p>{apiError || 'The plot dimensions are too small to satisfy the room area requirements and circulation.'}</p>
-                <button type="button" className="btn-cad-primary" onClick={() => executeSolve(TEST_INPUTS[0].input)}>
-                  Load Standard 4-Room Preset
-                </button>
+                {isSolving || !solvedInput ? (
+                  <h3>Solving layouts…</h3>
+                ) : (
+                  <>
+                    <h3>No layout for these inputs</h3>
+                    <p>{apiError || 'The plot dimensions are too small to satisfy the room area requirements and circulation.'}</p>
+                    <button type="button" className="btn-cad-primary"
+                      onClick={() => handleChangeInput(JSON.parse(JSON.stringify(TEST_INPUTS[0].input)), { solve: true })}>
+                      Load Standard 4-Room Preset
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}

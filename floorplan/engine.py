@@ -111,10 +111,16 @@ def wall_length(wall) -> int:
     return (x2 - x1) + (y2 - y1)
 
 
+def _half_feet(value):
+    """A whole number stays an int; a half foot (e.g. 18.5) stays exact."""
+    return int(value) if value == int(value) else value
+
+
 def wall_middle(wall):
-    """Whole-foot middle of a wall: where the door goes (H11)."""
+    """Exact middle of a wall: where the door goes. On a 3 ft wall from 17 to 20 that is 18.5, so the
+    3 ft door fills the wall exactly (rounding to 18 made it stick out half a foot past the wall)."""
     (x1, y1), (x2, y2) = wall
-    return (x1 + x2) // 2, (y1 + y2) // 2
+    return _half_feet((x1 + x2) / 2), _half_feet((y1 + y2) / 2)
 
 
 def entrance_wall(inp: Dict[str, Any], room: Dict[str, int], width: int, depth: int):
@@ -423,7 +429,17 @@ def edit_layout(
             text += f" Nearest {room} {side} that works: {value} ft."
     if not nearest:
         text += " No nearby value works either."
-    return {"status": "infeasible", "layouts": [], "nearest": nearest, "messages": messages + [text]}
+    blocking = []
+    if in_limits and locked:
+        # In a tightly packed plan a locked room can be what blocks the new size. One more solve, only
+        # on failure, tells the user whether unpinning would let the size they asked for fit.
+        free = solve_request(new_inp, count=1, time_limit_seconds=time_limit_seconds,
+                             max_hallway_segments=max_hallway_segments, previous_layout=previous)
+        if free["status"] == "valid":
+            blocking = sorted(locked)
+            text += f" It fits if {', '.join(blocking)} may move: unpin {'it' if len(blocking) == 1 else 'them'}."
+    return {"status": "infeasible", "layouts": [], "nearest": nearest, "blocking_locks": blocking,
+            "messages": messages + [text]}
 
 
 def _allowed_values(inp, table, room_name, side):
