@@ -17,9 +17,11 @@ from pydantic import BaseModel
 try:
     from floorplan.schema import FloorPlanInput, FloorPlanOutput, ErrorResponse, EditLayoutRequest, Layout
     from floorplan.runner import execute_pipeline, execute_engine_request, execute_engine_edit
+    from floorplan.coordinates import to_buildable_coordinates
 except ModuleNotFoundError:
     from schema import FloorPlanInput, FloorPlanOutput, ErrorResponse, EditLayoutRequest, Layout
     from runner import execute_pipeline, execute_engine_request, execute_engine_edit
+    from coordinates import to_buildable_coordinates
 
 log = logging.getLogger("floorplan.api")
 
@@ -222,13 +224,33 @@ def _drawing_doors(layout: dict) -> list:
 
 @app.post("/render", tags=["Drawing"], response_class=Response,
           responses={200: {"content": {"image/svg+xml": {}}}})
+
 def render_endpoint(payload: RenderRequest):
     """One layout as an SVG drawing. Body: {"input": <FloorPlanInput>, "layout": <one returned layout>}."""
     if render_layout_to_svg is None:
-        return _respond(ErrorResponse(error_code="NO_RENDERER_AVAILABLE",
-                                      message="floorplan/render.py is not loaded (see /health)."))
+        return _respond(ErrorResponse(
+            error_code="NO_RENDERER_AVAILABLE",
+            message="floorplan/render.py is not loaded (see /health)."
+        ))
+
     inp = payload.input.model_dump()
     layout = payload.layout.model_dump()
+
+    # Frontend sends plot coordinates.
+    # Renderer expects buildable-area coordinates.
+    layout = to_buildable_coordinates(
+        layout,
+        inp["setbacks"],
+    )
+
+    # Convert door representation after coordinate conversion.
     layout["doors"] = _drawing_doors(layout)
-    svg = render_layout_to_svg(layout, plot=tuple(inp["plot"]), setbacks=inp["setbacks"], entrance=inp["entrance"])
+
+    svg = render_layout_to_svg(
+        layout,
+        plot=tuple(inp["plot"]),
+        setbacks=inp["setbacks"],
+        entrance=inp["entrance"],
+    )
+
     return Response(content=svg, media_type="image/svg+xml")

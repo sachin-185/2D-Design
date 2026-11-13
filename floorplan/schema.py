@@ -144,16 +144,16 @@ class FloorPlanInput(BaseModel):
 class PlacedRoom(BaseModel):
     name: str
     type: str
-    x: int = Field(..., ge=0)
-    y: int = Field(..., ge=0)
+    x: Union[int, float] = Field(..., ge=0)
+    y: Union[int, float] = Field(..., ge=0)
     w: int = Field(..., gt=0)
     h: int = Field(..., gt=0)
 
 
 class HallwaySegment(BaseModel):
     id: str = "hallway_1"
-    x: int = Field(..., ge=0)
-    y: int = Field(..., ge=0)
+    x: Union[int, float] = Field(..., ge=0)
+    y: Union[int, float] = Field(..., ge=0)
     w: int = Field(..., gt=0)
     h: int = Field(..., gt=0)
 
@@ -168,6 +168,7 @@ class Window(BaseModel):
     room: str
     wall: Literal["N", "S", "E", "W"]
     x: Union[int, float]
+    y: Optional[Union[int, float]] = None
 
 
 class Layout(BaseModel):
@@ -185,12 +186,15 @@ class Layout(BaseModel):
 
 class FloorPlanOutput(BaseModel):
     layouts: List[Layout]
+    coordinate_system: Literal["plot"] = "plot"
+
     # Run-level notes from the engine, e.g. "Dropped a layout the checker rejected: ...".
     messages: List[str] = Field(default_factory=list)
+
     # After /edit-layout: the updated input (with the edit turned into pins). P5 sends this
     # back as the "input" of the next edit so pins accumulate.
     input: Optional[Dict[str, Any]] = None
-
+    
 
 class ErrorResponse(BaseModel):
     status: Literal["error", "infeasible", "unknown", "invalid", "conflict", "timeout"] = "error"

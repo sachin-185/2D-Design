@@ -47,6 +47,10 @@ try:
         resolve_room_type,
         get_p1_room_specs,
     )
+    from floorplan.coordinates import (
+        to_plot_coordinates,
+        to_buildable_coordinates,
+    )
 except ModuleNotFoundError:
     from schema import (
         FloorPlanInput,
@@ -70,6 +74,10 @@ except ModuleNotFoundError:
         HALLWAY_MIN_TOTAL_LENGTH,
         resolve_room_type,
         get_p1_room_specs,
+    )
+    from coordinates import (
+        to_plot_coordinates,
+        to_buildable_coordinates,
     )
 
 log = logging.getLogger(__name__)
@@ -160,6 +168,48 @@ def _ensure_input(input_data: Any) -> Union[FloorPlanInput, ErrorResponse]:
             details={"errors": _validation_details(exc)},
         )
 
+def _convert_output_to_plot(
+    result: Result,
+    input_data: FloorPlanInput,
+) -> Result:
+    """Convert successful buildable-coordinate output to plot coordinates."""
+
+    if isinstance(result, ErrorResponse):
+        return result
+
+    try:
+        setbacks = input_data.setbacks.model_dump()
+
+        converted_layouts = []
+
+        for layout in result.layouts:
+            layout_dict = layout.model_dump()
+
+            plot_layout = to_plot_coordinates(
+                layout_dict,
+                setbacks,
+            )
+
+            converted_layouts.append(
+                Layout.model_validate(plot_layout)
+            )
+
+        return result.model_copy(
+            update={
+                "layouts": converted_layouts,
+                "coordinate_system": "plot",
+            }
+        )
+
+    except (ValueError, TypeError, ValidationError) as exc:
+        log.exception("Coordinate conversion failed")
+
+        return ErrorResponse(
+            status="invalid",
+            error_code="INVALID_COORDINATE_LAYOUT",
+            message="Failed to convert the generated layout to plot coordinates.",
+            details={"error": str(exc)},
+        )
 
 # ---------------------------------------------------------------------------
 # P4 checker output handling
@@ -484,7 +534,9 @@ def execute_pipeline(
             if check_err:
                 return check_err
 
-        return FloorPlanOutput(layouts=[layout_obj])
+        result = FloorPlanOutput(layouts=[layout_obj])
+
+        return _convert_output_to_plot(result, input_data)
 
     except Exception as e:  # noqa: BLE001 - API must never return a bare 500
         log.exception("Unexpected pipeline failure")
@@ -558,7 +610,13 @@ def execute_engine_request(
         validated = _ensure_input(input_data)
         if isinstance(validated, ErrorResponse):
             return validated
-        return _run_engine(engine_func, hard_timeout_seconds, validated.model_dump(exclude_none=True))
+        result = _run_engine(
+            engine_func,
+            hard_timeout_seconds,
+            validated.model_dump(exclude_none=True),
+        )
+        return _convert_output_to_plot(result, validated)
+    
     except Exception as e:  # noqa: BLE001
         log.exception("Unexpected engine pipeline failure")
         return ErrorResponse(error_code="INTERNAL_ERROR", message=f"{type(e).__name__}: {e}")
@@ -582,14 +640,27 @@ def execute_engine_edit(
                 return ErrorResponse(status="invalid", error_code="INVALID_INPUT",
                                      message="Edit request failed validation.",
                                      details={"errors": _validation_details(exc)})
-        layout = request.layout.model_dump()
-        return _run_engine(
-            edit_func, hard_timeout_seconds,
+        # Frontend sends plot coordinates.
+        # Convert them back to buildable coordinates before editing.
+        layout = to_buildable_coordinates(
+            request.layout.model_dump(),
+            request.input.setbacks.model_dump(),
+        )
+
+        result = _run_engine(
+            edit_func,
+            hard_timeout_seconds,
             request.input.model_dump(exclude_none=True),
-            {"rooms": layout["rooms"], "hallway_segments": layout["hallway_segments"]},
+            {
+                "rooms": layout["rooms"],
+                "hallway_segments": layout["hallway_segments"],
+            },
             {room: dict(sides) for room, sides in request.edits.items()},
             lock=list(request.lock) or None,
         )
+
+        # Convert the successful edited layout back to plot coordinates.
+        return _convert_output_to_plot(result, request.input)
     except Exception as e:  # noqa: BLE001
         log.exception("Unexpected engine edit failure")
         return ErrorResponse(error_code="INTERNAL_ERROR", message=f"{type(e).__name__}: {e}")
