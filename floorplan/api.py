@@ -61,12 +61,7 @@ try:
     from validate_all import validate_all, errors_only
 except ImportError as e:
     _note("checker", e)
-    try:
-        from checker import validate_all
-        errors_only = None
-    except ImportError as e2:
-        _note("checker", e2)
-        validate_all, errors_only = None, None
+    validate_all, errors_only = None, None
 
 if validate_all is None:
     # Last resort: P4's floorplan/validator.py. Its built-in SIZE_TABLE is example values,
