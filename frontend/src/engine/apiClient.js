@@ -1,24 +1,24 @@
 // Talks to the FastAPI backend (P3's floorplan/api.py, which runs P1 + P2 + P4).
 // The in-browser solver (solver.js) is kept only as an offline demo.
 
-import { solveFloorplan } from './solver.js';
-import { getBuildableArea } from './contracts.js';
-import { placeWindows } from './doorsAndWindows.js';
+import { solveFloorplan } from "./solver.js";
+import { getBuildableArea } from "./contracts.js";
+import { placeWindows } from "./doorsAndWindows.js";
 
 // Vite proxies /api to http://localhost:8000 (see vite.config.js). Set VITE_API_URL to call another host.
-export const DEFAULT_BACKEND_URL = import.meta.env?.VITE_API_URL || '/api';
+export const DEFAULT_BACKEND_URL = import.meta.env?.VITE_API_URL || "/api";
 
 // The engine runs several solver calls per request; P3's API stops a hung engine after 60 s.
 const REQUEST_TIMEOUT_MS = 90000;
 const DOOR_WIDTH = 3;
-const MAIN_DOOR_SIDES = ['outside', 'exterior'];
+const MAIN_DOOR_SIDES = ["outside", "exterior"];
 
 export class ApiError extends Error {
   constructor(message, { status, errorCode, details, httpStatus } = {}) {
     super(message);
-    this.status = status;          // engine status: infeasible, conflict, invalid, timeout, ...
-    this.errorCode = errorCode;    // P3 error_code, e.g. INFEASIBLE_AREA
-    this.details = details || {};  // e.g. details.nearest after an impossible edit
+    this.status = status; // engine status: infeasible, conflict, invalid, timeout, ...
+    this.errorCode = errorCode; // P3 error_code, e.g. INFEASIBLE_AREA
+    this.details = details || {}; // e.g. details.nearest after an impossible edit
     this.httpStatus = httpStatus;
   }
 }
@@ -29,18 +29,21 @@ async function postJson(url, body) {
   let response;
   try {
     response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new ApiError(`The backend did not answer within ${REQUEST_TIMEOUT_MS / 1000} s.`, { status: 'timeout' });
+    if (err.name === "AbortError") {
+      throw new ApiError(
+        `The backend did not answer within ${REQUEST_TIMEOUT_MS / 1000} s.`,
+        { status: "timeout" },
+      );
     }
     throw new ApiError(
-      'Cannot reach the backend. Start it with: python -m uvicorn floorplan.api:app --port 8000',
-      { status: 'error', errorCode: 'BACKEND_UNREACHABLE' },
+      "Cannot reach the backend. Start it with: python -m uvicorn floorplan.api:app --port 8000",
+      { status: "error", errorCode: "BACKEND_UNREACHABLE" },
     );
   } finally {
     clearTimeout(timeoutId);
@@ -61,22 +64,35 @@ async function postJson(url, body) {
 
 function toApiError(httpStatus, json, text) {
   const detail = json?.detail;
-  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
     // P3's error contract: {status, error_code, message, details}
-    return new ApiError(detail.message || detail.error_code || 'Request failed', {
-      status: detail.status, errorCode: detail.error_code, details: detail.details, httpStatus,
-    });
+    return new ApiError(
+      detail.message || detail.error_code || "Request failed",
+      {
+        status: detail.status,
+        errorCode: detail.error_code,
+        details: detail.details,
+        httpStatus,
+      },
+    );
   }
   if (Array.isArray(detail)) {
     // FastAPI 422: the request body did not match the input schema
     const lines = detail.map((d) => {
-      const where = (d.loc || []).filter((p) => p !== 'body').join('.');
-      const msg = String(d.msg || '').replace(/^Value error, /, '');
+      const where = (d.loc || []).filter((p) => p !== "body").join(".");
+      const msg = String(d.msg || "").replace(/^Value error, /, "");
       return where ? `${where}: ${msg}` : msg;
     });
-    return new ApiError(`Invalid input. ${lines.join('; ')}`, { status: 'invalid', errorCode: 'INVALID_INPUT', httpStatus });
+    return new ApiError(`Invalid input. ${lines.join("; ")}`, {
+      status: "invalid",
+      errorCode: "INVALID_INPUT",
+      httpStatus,
+    });
   }
-  return new ApiError(`Backend error ${httpStatus}: ${text || 'no details'}`, { status: 'error', httpStatus });
+  return new ApiError(`Backend error ${httpStatus}: ${text || "no details"}`, {
+    status: "error",
+    httpStatus,
+  });
 }
 
 // --- backend layout -> what Canvas.jsx draws ---------------------------------------------------------
@@ -88,18 +104,68 @@ function toCanvasDoor(door, boxes, index) {
   const isMain = MAIN_DOOR_SIDES.includes(a) || MAIN_DOOR_SIDES.includes(b);
   const roomName = MAIN_DOOR_SIDES.includes(a) ? b : a;
   const box = boxes[roomName] || boxes[b];
-  const onVerticalWall = box ? door.x === box.x || door.x === box.x + box.w : false;
+  const EPSILON = 0.1;
+
+  const onVerticalWall = box
+    ? Math.abs(door.x - box.x) < EPSILON ||
+      Math.abs(door.x - (box.x + box.w)) < EPSILON
+    : false;
+
   const half = DOOR_WIDTH / 2;
   return {
     id: `door-${index}`,
-    between: isMain ? ['exterior', roomName] : [a, b],
-    orientation: onVerticalWall ? 'vertical' : 'horizontal',
+    between: isMain ? ["exterior", roomName] : [a, b],
+    orientation: onVerticalWall ? "vertical" : "horizontal",
     x: onVerticalWall ? door.x : door.x - half,
     y: onVerticalWall ? door.y - half : door.y,
     width: DOOR_WIDTH,
-    swingDir: 'in',
+    swingDir: "in",
     isMainEntrance: isMain,
     center: { x: door.x, y: door.y },
+  };
+}
+
+function toCanvasLocalLayout(layout, input, index) {
+  const buildable = getBuildableArea(input.plot, input.setbacks || {});
+  const offsetX = buildable.originX;
+  const offsetY = buildable.originY;
+
+  const shiftPosition = (item) => ({
+    ...item,
+    x: item.x + offsetX,
+    y: item.y + offsetY,
+  });
+
+  const rooms = (layout.rooms || []).map(shiftPosition);
+
+  const hallwaySegments = (layout.hallway_segments || []).map(shiftPosition);
+
+  const hallway = layout.hallway
+    ? shiftPosition(layout.hallway)
+    : hallwaySegments[0] || null;
+
+  const doors = (layout.doors || []).map((door) => ({
+    ...shiftPosition(door),
+    ...(door.center
+      ? {
+          center: {
+            x: door.center.x + offsetX,
+            y: door.center.y + offsetY,
+          },
+        }
+      : {}),
+  }));
+
+  const windows = (layout.windows || []).map(shiftPosition);
+
+  return {
+    ...layout,
+    id: `layout-${index + 1}`,
+    rooms,
+    hallway_segments: hallwaySegments,
+    hallway,
+    doors,
+    windows,
   };
 }
 
@@ -109,9 +175,10 @@ export function toCanvasLayout(layout, input, index) {
   const boxes = {};
   for (const r of layout.rooms || []) boxes[r.name] = r;
   for (const h of halls) boxes[h.id] = h;
-  const windows = layout.windows && layout.windows.length > 0
-    ? layout.windows
-    : placeWindows(layout.rooms || [], buildable); // the engine places no windows yet
+  const windows =
+    layout.windows && layout.windows.length > 0
+      ? layout.windows
+      : placeWindows(layout.rooms || [], buildable, "plot"); // the engine places no windows yet
 
   return {
     ...layout,
@@ -129,48 +196,93 @@ export function toCanvasLayout(layout, input, index) {
 }
 
 function prettyArchetype(name) {
-  if (!name) return 'Free Plan';
-  return name.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+  if (!name) return "Free Plan";
+  return name
+    .split("_")
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 function toResult(json, input) {
-  const layouts = (json.layouts || []).map((l, i) => toCanvasLayout(l, input, i));
-  const warnings = layouts.flatMap((l) => l.messages
-    .filter((m) => m.startsWith('Warning'))
-    .map((m) => ({ code: 'W', message: m, rooms: [], severity: 'warning' })));
-  return { success: true, layouts, problems: warnings, messages: json.messages || [], input: json.input || null };
+  const layouts = (json.layouts || []).map((l, i) =>
+    toCanvasLayout(l, input, i),
+  );
+  const warnings = layouts.flatMap((l) =>
+    l.messages
+      .filter((m) => m.startsWith("Warning"))
+      .map((m) => ({ code: "W", message: m, rooms: [], severity: "warning" })),
+  );
+  return {
+    success: true,
+    layouts,
+    problems: warnings,
+    messages: json.messages || [],
+    input: json.input || null,
+  };
 }
 
 // --- public calls ------------------------------------------------------------------------------------
 
-export async function requestGenerate(inputData, useBackend = true, backendUrl = DEFAULT_BACKEND_URL) {
+export async function requestGenerate(
+  inputData,
+  useBackend = true,
+  backendUrl = DEFAULT_BACKEND_URL,
+) {
   if (!useBackend) {
     const result = solveFloorplan(inputData);
     if (!result.success) {
-      throw new Error(result.error || 'Feasibility check failed: plot is too small.');
+      throw new Error(
+        result.error || "Feasibility check failed: plot is too small.",
+      );
     }
-    return { source: 'local-engine', data: result };
+    return {
+      source: "local-engine",
+      data: {
+        ...result,
+        layouts: result.layouts.map((layout, index) =>
+          toCanvasLocalLayout(layout, inputData, index),
+        ),
+      },
+    };
   }
   const json = await postJson(`${backendUrl}/generate`, inputData);
-  return { source: 'backend-api', data: toResult(json, inputData) };
+  return { source: "backend-api", data: toResult(json, inputData) };
 }
 
 // Resize rooms in an existing layout. edits = {room: {width, height}}, lock = rooms that must not move.
 // On success data.input holds the updated input (pins included) to use for the next edit.
-export async function requestEdit(inputData, layout, edits, lock = [], backendUrl = DEFAULT_BACKEND_URL) {
+export async function requestEdit(
+  inputData,
+  layout,
+  edits,
+  lock = [],
+  backendUrl = DEFAULT_BACKEND_URL,
+) {
   const base = layout.backendLayout || layout;
   const body = {
     input: inputData,
     layout: {
       score: base.score || 0,
-      rooms: base.rooms.map(({ name, type, x, y, w, h }) => ({ name, type, x, y, w, h })),
-      hallway_segments: (base.hallway_segments || []).map(({ id, x, y, w, h }) => ({ id, x, y, w, h })),
+      rooms: base.rooms.map(({ name, type, x, y, w, h }) => ({
+        name,
+        type,
+        x,
+        y,
+        w,
+        h,
+      })),
+      hallway_segments: (base.hallway_segments || []).map(
+        ({ id, x, y, w, h }) => ({ id, x, y, w, h }),
+      ),
     },
     edits,
     lock,
   };
   const json = await postJson(`${backendUrl}/edit-layout`, body);
-  return { source: 'backend-api', data: toResult(json, json.input || inputData) };
+  return {
+    source: "backend-api",
+    data: toResult(json, json.input || inputData),
+  };
 }
 
 export async function checkBackendHealth(backendUrl = DEFAULT_BACKEND_URL) {

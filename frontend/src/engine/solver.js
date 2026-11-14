@@ -1,17 +1,19 @@
-
-
-import { ROOM_SIZE_TABLE, getBuildableArea, checkFeasibility, ZONE_GRID_MAP } from './contracts.js';
-import { placeDoors, placeWindows } from './doorsAndWindows.js';
-import { checkLayout } from './checker.js';
-
+import {
+  ROOM_SIZE_TABLE,
+  getBuildableArea,
+  checkFeasibility,
+  ZONE_GRID_MAP,
+} from "./contracts.js";
+import { placeDoors, placeWindows } from "./doorsAndWindows.js";
+import { checkLayout } from "./checker.js";
 
 function getPointZone(cx, cy, W, L) {
   const col = Math.min(2, Math.max(0, Math.floor((cx / W) * 3)));
   const row = Math.min(2, Math.max(0, Math.floor((cy / L) * 3)));
   const zones = [
-    ['SW', 'S', 'SE'],
-    ['W', 'Mid', 'E'],
-    ['NW', 'N', 'NE'],
+    ["SW", "S", "SE"],
+    ["W", "Mid", "E"],
+    ["NW", "N", "NE"],
   ];
   return zones[row][col];
 }
@@ -42,29 +44,31 @@ export function scoreLayout(layout, input) {
       const cy = room.y + room.h / 2;
       const actualZone = getPointZone(cx, cy, W, L);
       const dist = getZoneDistance(req.zone, actualZone);
-      if (req.zone_mode === 'must' && dist > 0) {
+      if (req.zone_mode === "must" && dist > 0) {
         score += 100 * dist;
-      } else if (req.zone_mode === 'try') {
+      } else if (req.zone_mode === "try") {
         score += dist * 5;
       }
     }
   });
 
-  const hallwayArea = (layout.hallway_segments || []).reduce((acc, h) => acc + h.w * h.h, 0);
+  const hallwayArea = (layout.hallway_segments || []).reduce(
+    (acc, h) => acc + h.w * h.h,
+    0,
+  );
   score += Math.round(hallwayArea * 0.5);
 
-  const living = layout.rooms.find((r) => r.type === 'living');
+  const living = layout.rooms.find((r) => r.type === "living");
   if (living && input.entrance) {
-    const side = input.entrance;
-    if (side === 'S' && Math.abs(living.y) > 2) score += 15;
-    if (side === 'N' && Math.abs(living.y + living.h - L) > 2) score += 15;
-    if (side === 'E' && Math.abs(living.x + living.w - W) > 2) score += 15;
-    if (side === 'W' && Math.abs(living.x) > 2) score += 15;
+    const side = getPhysicalEntranceSide(input.entrance, input.north || "up");
+    if (side === "S" && Math.abs(living.y) > 2) score += 15;
+    if (side === "N" && Math.abs(living.y + living.h - L) > 2) score += 15;
+    if (side === "E" && Math.abs(living.x + living.w - W) > 2) score += 15;
+    if (side === "W" && Math.abs(living.x) > 2) score += 15;
   }
 
   return Math.round(score);
 }
-
 
 function solveCentralHallway(input, buildable, pinnedMap) {
   const W = buildable.width;
@@ -78,7 +82,7 @@ function solveCentralHallway(input, buildable, pinnedMap) {
 
   const hallway_segments = [
     {
-      id: 'hallway_1',
+      id: "hallway_1",
       x: hallwayX,
       y: 0,
       w: hallwayW,
@@ -90,13 +94,19 @@ function solveCentralHallway(input, buildable, pinnedMap) {
   const leftRooms = [];
   const rightRooms = [];
 
-  const unattached = reqRooms.filter(r => !r.attached_to);
-  const attached = reqRooms.filter(r => r.attached_to);
+  const unattached = reqRooms.filter((r) => !r.attached_to);
+  const attached = reqRooms.filter((r) => r.attached_to);
 
   unattached.forEach((r) => {
-    if (r.zone && (r.zone.includes('W') || r.zone === 'NW' || r.zone === 'SW')) {
+    if (
+      r.zone &&
+      (r.zone.includes("W") || r.zone === "NW" || r.zone === "SW")
+    ) {
       leftRooms.push(r);
-    } else if (r.zone && (r.zone.includes('E') || r.zone === 'NE' || r.zone === 'SE')) {
+    } else if (
+      r.zone &&
+      (r.zone.includes("E") || r.zone === "NE" || r.zone === "SE")
+    ) {
       rightRooms.push(r);
     } else {
       if (leftRooms.length <= rightRooms.length) leftRooms.push(r);
@@ -105,11 +115,11 @@ function solveCentralHallway(input, buildable, pinnedMap) {
   });
 
   attached.forEach((r) => {
-    const lIdx = leftRooms.findIndex(x => x.name === r.attached_to);
+    const lIdx = leftRooms.findIndex((x) => x.name === r.attached_to);
     if (lIdx >= 0) {
       leftRooms.splice(lIdx + 1, 0, r);
     } else {
-      const rIdx = rightRooms.findIndex(x => x.name === r.attached_to);
+      const rIdx = rightRooms.findIndex((x) => x.name === r.attached_to);
       if (rIdx >= 0) {
         rightRooms.splice(rIdx + 1, 0, r);
       } else {
@@ -131,7 +141,7 @@ function solveCentralHallway(input, buildable, pinnedMap) {
     if (count === 0) return;
 
     let remainingHeight = L;
-    let currentY = 0; 
+    let currentY = 0;
 
     wingRooms.forEach((r, idx) => {
       const pin = pinnedMap[r.name];
@@ -144,7 +154,10 @@ function solveCentralHallway(input, buildable, pinnedMap) {
         const config = ROOM_SIZE_TABLE[r.type] || ROOM_SIZE_TABLE.bedroom;
         const targetPrefH = config.preferred.h;
         const share = Math.round(remainingHeight / (count - idx));
-        roomH = Math.max(config.min.h, Math.min(config.max.h, share || targetPrefH));
+        roomH = Math.max(
+          config.min.h,
+          Math.min(config.max.h, share || targetPrefH),
+        );
         if (remainingHeight - roomH < 7) {
           roomH = Math.max(7, remainingHeight - 7);
         }
@@ -173,26 +186,28 @@ function solveCentralHallway(input, buildable, pinnedMap) {
   placeWing(rightRooms, hallwayX + hallwayW, rightW);
 
   return {
-    archetype: 'Central Hallway',
+    archetype: "Central Hallway",
     hallway_segments,
     rooms: placedRooms,
     messages,
   };
 }
 
-
 function solveSideCorridor(input, buildable, pinnedMap) {
   const W = buildable.width;
   const L = buildable.length;
   const messages = [];
 
-  const entrance = input.entrance || 'S';
+  const entrance = getPhysicalEntranceSide(
+    input.entrance || "S",
+    input.north || "up",
+  );
   const corridorH = 4;
-  const corridorY = entrance === 'S' ? 0 : L - corridorH;
+  const corridorY = entrance === "S" ? 0 : L - corridorH;
 
   const hallway_segments = [
     {
-      id: 'hallway_1',
+      id: "hallway_1",
       x: 0,
       y: corridorY,
       w: W,
@@ -201,7 +216,7 @@ function solveSideCorridor(input, buildable, pinnedMap) {
   ];
 
   const remainingL = L - corridorH;
-  const startY = entrance === 'S' ? corridorH : 0;
+  const startY = entrance === "S" ? corridorH : 0;
 
   const reqRooms = [...input.rooms];
   const placedRooms = [];
@@ -249,26 +264,29 @@ function solveSideCorridor(input, buildable, pinnedMap) {
   }
 
   return {
-    archetype: 'Side Corridor Flow',
+    archetype: "Side Corridor Flow",
     hallway_segments,
     rooms: placedRooms,
     messages,
   };
 }
 
-
 function solveLivingHub(input, buildable, pinnedMap) {
   const W = buildable.width;
   const L = buildable.length;
   const messages = [];
 
-  const livingReq = input.rooms.find((r) => r.type === 'living') || input.rooms[0];
+  const livingReq =
+    input.rooms.find((r) => r.type === "living") || input.rooms[0];
   const otherRooms = input.rooms.filter((r) => r.name !== livingReq.name);
 
   const livingH = Math.max(12, Math.floor(L * 0.45));
-  const entrance = input.entrance || 'S';
-  const livingY = entrance === 'S' ? 0 : L - livingH;
-  const otherY = entrance === 'S' ? livingH : 0;
+  const entrance = getPhysicalEntranceSide(
+    input.entrance || "S",
+    input.north || "up",
+  );
+  const livingY = entrance === "S" ? 0 : L - livingH;
+  const otherY = entrance === "S" ? livingH : 0;
   const otherH = L - livingH;
 
   const placedRooms = [];
@@ -307,24 +325,37 @@ function solveLivingHub(input, buildable, pinnedMap) {
     curX += roomW;
   });
 
-  const hallway_segments = count > 3 ? [
-    {
-      id: 'hallway_1',
-      x: Math.floor(W * 0.35),
-      y: otherY,
-      w: Math.max(3, Math.floor(W * 0.3)),
-      h: 3,
-    },
-  ] : [];
+  const hallway_segments =
+    count > 3
+      ? [
+          {
+            id: "hallway_1",
+            x: Math.floor(W * 0.35),
+            y: otherY,
+            w: Math.max(3, Math.floor(W * 0.3)),
+            h: 3,
+          },
+        ]
+      : [];
 
   return {
-    archetype: 'Living Hub & Direct Wings',
+    archetype: "Living Hub & Direct Wings",
     hallway_segments,
     rooms: placedRooms,
     messages,
   };
 }
 
+function getPhysicalEntranceSide(entrance, north = "up") {
+  const mapping = {
+    up: { N: "N", S: "S", E: "E", W: "W" },
+    down: { N: "S", S: "N", E: "W", W: "E" },
+    left: { N: "W", S: "E", E: "N", W: "S" },
+    right: { N: "E", S: "W", E: "S", W: "N" },
+  };
+
+  return mapping[north]?.[entrance] || entrance;
+}
 
 export function solveFloorplan(input) {
   const feasibility = checkFeasibility(input.plot, input.setbacks, input.rooms);
@@ -337,10 +368,10 @@ export function solveFloorplan(input) {
       layouts: [],
       problems: [
         {
-          code: 'I1',
+          code: "I1",
           message: `Feasibility Check Failed: Plot shortfall of ${feasibility.shortfall} sq ft. Total required: ${feasibility.totalRequired} sq ft vs buildable: ${feasibility.buildableArea} sq ft.`,
           rooms: [],
-          severity: 'error',
+          severity: "error",
         },
       ],
       messages: [feasibility.message],
@@ -367,9 +398,9 @@ export function solveFloorplan(input) {
     const { doors, unconnectedRooms } = placeDoors(
       layout.rooms,
       layout.hallway_segments,
-      input.entrance || 'S',
+      getPhysicalEntranceSide(input.entrance || "S", input.north || "up"),
       buildable,
-      input.rooms
+      input.rooms,
     );
     const windows = placeWindows(layout.rooms, buildable);
     const score = scoreLayout(layout, input);
@@ -378,10 +409,10 @@ export function solveFloorplan(input) {
 
     unconnectedRooms.forEach((u) => {
       problems.push({
-        code: 'F1',
+        code: "F1",
         message: u.reason,
         rooms: [u.room],
-        severity: 'error',
+        severity: "error",
       });
     });
 
@@ -392,7 +423,7 @@ export function solveFloorplan(input) {
       score,
       rooms: layout.rooms,
       hallway_segments: layout.hallway_segments,
-      hallway: layout.hallway_segments?.[0] || null, 
+      hallway: layout.hallway_segments?.[0] || null,
       doors,
       windows,
       problems,
