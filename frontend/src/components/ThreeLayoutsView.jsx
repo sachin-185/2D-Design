@@ -37,7 +37,12 @@ export default function ThreeLayoutsView({ layouts, activeLayoutId, onSelectLayo
                   <h4 className="archetype-name">{item.archetype || 'Central Core'}</h4>
                 </div>
                 <div className="score-container">
-                  {isBestScore && layouts.length > 1 && (
+                  {item.isValid !== undefined && (
+                    <span className={item.isValid ? "best-badge" : "score-badge"} style={{ borderColor: item.isValid ? '#10b981' : '#ef4444', color: item.isValid ? '#10b981' : '#f87171' }}>
+                      {item.isValid ? '✓ Valid' : `⚠ ${item.errorCount || 1} Issues`}
+                    </span>
+                  )}
+                  {isBestScore && layouts.length > 1 && (item.isValid !== false) && (
                     <span className="best-badge" title="Lowest penalty score">
                       <Award size={12} /> Best Fit
                     </span>

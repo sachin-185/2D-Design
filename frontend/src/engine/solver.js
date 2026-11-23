@@ -25,6 +25,16 @@ function getZoneDistance(zoneA, zoneB) {
   return Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
 }
 
+function getPhysicalEntranceSide(entrance, north = "up") {
+  const mapping = {
+    up: { N: "N", S: "S", E: "E", W: "W" },
+    down: { N: "S", S: "N", E: "W", W: "E" },
+    left: { N: "W", S: "E", E: "N", W: "S" },
+    right: { N: "E", S: "W", E: "S", W: "N" },
+  };
+  return mapping[north]?.[entrance] || entrance;
+}
+
 export function scoreLayout(layout, input) {
   let score = 0;
   const buildable = getBuildableArea(input.plot, input.setbacks);
@@ -75,9 +85,13 @@ function solveCentralHallway(input, buildable, pinnedMap) {
   const L = buildable.length;
   const messages = [];
 
-  const hallwayW = Math.max(3, Math.min(5, Math.floor(W * 0.15)));
-  const leftW = Math.floor((W - hallwayW) / 2);
-  const rightW = W - hallwayW - leftW;
+  const hallwayW = Math.max(3, Math.min(4, Math.floor(W * 0.12) || 3));
+  const availableW = W - hallwayW;
+  let leftW = Math.floor(availableW / 2);
+  if (availableW >= 20) {
+    leftW = Math.min(16, Math.max(12, Math.floor(availableW * 0.55)));
+  }
+  const rightW = availableW - leftW;
   const hallwayX = leftW;
 
   const hallway_segments = [
@@ -90,95 +104,135 @@ function solveCentralHallway(input, buildable, pinnedMap) {
     },
   ];
 
-  const reqRooms = [...input.rooms];
+  const entrance = getPhysicalEntranceSide(input.entrance || "S", input.north || "up");
+  const livingReq = input.rooms.find((r) => r.type === "living") || input.rooms[0];
+  const kitchenReq = input.rooms.find((r) => r.type === "kitchen");
+
   const leftRooms = [];
   const rightRooms = [];
+  const attachedByParent = new Map();
 
-  const unattached = reqRooms.filter((r) => !r.attached_to);
-  const attached = reqRooms.filter((r) => r.attached_to);
-
-  unattached.forEach((r) => {
-    if (
-      r.zone &&
-      (r.zone.includes("W") || r.zone === "NW" || r.zone === "SW")
-    ) {
-      leftRooms.push(r);
-    } else if (
-      r.zone &&
-      (r.zone.includes("E") || r.zone === "NE" || r.zone === "SE")
-    ) {
-      rightRooms.push(r);
-    } else {
-      if (leftRooms.length <= rightRooms.length) leftRooms.push(r);
-      else rightRooms.push(r);
-    }
-  });
-
-  attached.forEach((r) => {
-    const lIdx = leftRooms.findIndex((x) => x.name === r.attached_to);
-    if (lIdx >= 0) {
-      leftRooms.splice(lIdx + 1, 0, r);
-    } else {
-      const rIdx = rightRooms.findIndex((x) => x.name === r.attached_to);
-      if (rIdx >= 0) {
-        rightRooms.splice(rIdx + 1, 0, r);
-      } else {
-        leftRooms.push(r);
+  input.rooms.forEach((r) => {
+    if (r.attached_to) {
+      if (!attachedByParent.has(r.attached_to)) {
+        attachedByParent.set(r.attached_to, []);
       }
+      attachedByParent.get(r.attached_to).push(r);
     }
   });
 
-  if (leftRooms.length === 0 && rightRooms.length > 1) {
-    leftRooms.push(rightRooms.shift());
-  } else if (rightRooms.length === 0 && leftRooms.length > 1) {
-    rightRooms.push(leftRooms.shift());
+  const primaryRooms = input.rooms.filter((r) => !r.attached_to);
+
+  leftRooms.push(livingReq);
+  if (kitchenReq && kitchenReq.name !== livingReq.name) {
+    leftRooms.push(kitchenReq);
+  }
+
+  primaryRooms.forEach((r) => {
+    if (r.name === livingReq.name) return;
+    if (kitchenReq && r.name === kitchenReq.name) return;
+    rightRooms.push(r);
+  });
+
+  if (rightRooms.length === 0 && leftRooms.length > 2) {
+    rightRooms.push(leftRooms.pop());
   }
 
   const placedRooms = [];
 
   function placeWing(wingRooms, startX, wingWidth) {
-    const count = wingRooms.length;
-    if (count === 0) return;
+    if (wingRooms.length === 0) return;
 
+    const units = [];
+    wingRooms.forEach((parent) => {
+      const children = attachedByParent.get(parent.name) || [];
+      units.push({ parent, children });
+    });
+
+    const unitCount = units.length;
     let remainingHeight = L;
     let currentY = 0;
 
-    wingRooms.forEach((r, idx) => {
-      const pin = pinnedMap[r.name];
-      const isLast = idx === count - 1;
-      let roomH;
+    units.forEach((unit, uIdx) => {
+      const isLastUnit = uIdx === unitCount - 1;
+      const parentPin = pinnedMap[unit.parent.name];
+      const parentConfig = ROOM_SIZE_TABLE[unit.parent.type] || ROOM_SIZE_TABLE.bedroom;
+      const hasChildren = unit.children.length > 0;
 
-      if (isLast) {
-        roomH = remainingHeight;
+      let unitTotalH;
+      if (isLastUnit) {
+        unitTotalH = remainingHeight;
       } else {
-        const config = ROOM_SIZE_TABLE[r.type] || ROOM_SIZE_TABLE.bedroom;
-        const targetPrefH = config.preferred.h;
-        const share = Math.round(remainingHeight / (count - idx));
-        roomH = Math.max(
-          config.min.h,
-          Math.min(config.max.h, share || targetPrefH),
-        );
-        if (remainingHeight - roomH < 7) {
-          roomH = Math.max(7, remainingHeight - 7);
+        const share = Math.round(remainingHeight / (unitCount - uIdx));
+        const needed = hasChildren ? parentConfig.min.h + 7 : parentConfig.min.h;
+        unitTotalH = Math.max(needed, share);
+        if (remainingHeight - unitTotalH < 8 && unitCount - uIdx > 1) {
+          unitTotalH = Math.max(needed, remainingHeight - 8);
         }
       }
 
-      let roomW = wingWidth;
-      if (pin?.width) {
-        roomW = pin.width;
+      if (hasChildren) {
+        const child = unit.children[0];
+        const childPin = pinnedMap[child.name];
+        const childConfig = ROOM_SIZE_TABLE[child.type] || ROOM_SIZE_TABLE.bathroom;
+
+        let childH = childPin?.height || childConfig.preferred.h;
+        childH = Math.max(childConfig.min.h, Math.min(childConfig.max.h, childH));
+
+        let parentH = unitTotalH - childH;
+        if (parentPin?.height) {
+          parentH = parentPin.height;
+        } else {
+          parentH = Math.max(parentConfig.min.h, parentH);
+        }
+
+        const parentW = parentPin?.width ? Math.min(parentPin.width, wingWidth) : wingWidth;
+        const childW = childPin?.width ? Math.min(childPin.width, wingWidth) : wingWidth;
+
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: startX,
+          y: currentY,
+          w: parentW,
+          h: parentH,
+        });
+
+        placedRooms.push({
+          name: child.name,
+          type: child.type,
+          x: startX,
+          y: currentY + parentH,
+          w: childW,
+          h: childH,
+        });
+
+        const placedUnitH = parentH + childH;
+        remainingHeight -= placedUnitH;
+        currentY += placedUnitH;
+      } else {
+        let parentH = parentPin?.height || unitTotalH;
+        if (!parentPin?.height) {
+          parentH = Math.max(parentConfig.min.h, Math.min(parentConfig.max.h, parentH));
+          if (isLastUnit && remainingHeight > 0) {
+            parentH = remainingHeight;
+          }
+        }
+
+        const parentW = parentPin?.width ? Math.min(parentPin.width, wingWidth) : wingWidth;
+
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: startX,
+          y: currentY,
+          w: parentW,
+          h: parentH,
+        });
+
+        remainingHeight -= parentH;
+        currentY += parentH;
       }
-
-      placedRooms.push({
-        name: r.name,
-        type: r.type,
-        x: startX,
-        y: currentY,
-        w: roomW,
-        h: pin?.height || roomH,
-      });
-
-      remainingHeight -= roomH;
-      currentY += roomH;
     });
   }
 
@@ -198,68 +252,146 @@ function solveSideCorridor(input, buildable, pinnedMap) {
   const L = buildable.length;
   const messages = [];
 
-  const entrance = getPhysicalEntranceSide(
-    input.entrance || "S",
-    input.north || "up",
-  );
-  const corridorH = 4;
-  const corridorY = entrance === "S" ? 0 : L - corridorH;
+  const entrance = getPhysicalEntranceSide(input.entrance || "S", input.north || "up");
+  const isHorizontalCorridor = entrance === "S" || entrance === "N";
+  const corridorSize = Math.max(3, Math.min(4, Math.floor((isHorizontalCorridor ? L : W) * 0.12) || 4));
 
-  const hallway_segments = [
-    {
-      id: "hallway_1",
-      x: 0,
-      y: corridorY,
-      w: W,
-      h: corridorH,
-    },
-  ];
+  let hallway_segments = [];
+  let availableX = 0;
+  let availableY = 0;
+  let availableW = W;
+  let availableL = L;
 
-  const remainingL = L - corridorH;
-  const startY = entrance === "S" ? corridorH : 0;
+  if (entrance === "S") {
+    hallway_segments = [{ id: "hallway_1", x: 0, y: 0, w: W, h: corridorSize }];
+    availableY = corridorSize;
+    availableL = L - corridorSize;
+  } else if (entrance === "N") {
+    hallway_segments = [{ id: "hallway_1", x: 0, y: L - corridorSize, w: W, h: corridorSize }];
+    availableL = L - corridorSize;
+  } else if (entrance === "W") {
+    hallway_segments = [{ id: "hallway_1", x: 0, y: 0, w: corridorSize, h: L }];
+    availableX = corridorSize;
+    availableW = W - corridorSize;
+  } else {
+    hallway_segments = [{ id: "hallway_1", x: W - corridorSize, y: 0, w: corridorSize, h: L }];
+    availableW = W - corridorSize;
+  }
 
-  const reqRooms = [...input.rooms];
+  const attachedByParent = new Map();
+  input.rooms.forEach((r) => {
+    if (r.attached_to) {
+      if (!attachedByParent.has(r.attached_to)) {
+        attachedByParent.set(r.attached_to, []);
+      }
+      attachedByParent.get(r.attached_to).push(r);
+    }
+  });
+
+  const primaryRooms = input.rooms.filter((r) => !r.attached_to);
+  const units = primaryRooms.map((parent) => ({
+    parent,
+    children: attachedByParent.get(parent.name) || [],
+  }));
+
   const placedRooms = [];
+  const count = units.length;
 
-  if (reqRooms.length <= 4) {
-    const midX = Math.floor(W / 2);
-    const midY = Math.floor(remainingL / 2);
+  if (isHorizontalCorridor) {
+    let curX = availableX;
+    units.forEach((unit, idx) => {
+      const isLast = idx === count - 1;
+      const parentPin = pinnedMap[unit.parent.name];
+      const sliceW = isLast ? availableW - (curX - availableX) : Math.floor(availableW / count);
+      const roomW = parentPin?.width ? Math.min(parentPin.width, sliceW) : sliceW;
 
-    const positions = [
-      { x: 0, y: startY, w: midX, h: midY },
-      { x: midX, y: startY, w: W - midX, h: midY },
-      { x: 0, y: startY + midY, w: midX, h: remainingL - midY },
-      { x: midX, y: startY + midY, w: W - midX, h: remainingL - midY },
-    ];
+      if (unit.children.length > 0) {
+        const child = unit.children[0];
+        const childPin = pinnedMap[child.name];
+        const childConfig = ROOM_SIZE_TABLE[child.type] || ROOM_SIZE_TABLE.bathroom;
+        let childH = childPin?.height || childConfig.preferred.h;
+        childH = Math.max(childConfig.min.h, Math.min(childConfig.max.h, childH));
+        const parentH = availableL - childH;
 
-    reqRooms.forEach((r, idx) => {
-      const pos = positions[idx] || positions[0];
-      const pin = pinnedMap[r.name];
-      placedRooms.push({
-        name: r.name,
-        type: r.type,
-        x: pos.x,
-        y: pos.y,
-        w: pin?.width || pos.w,
-        h: pin?.height || pos.h,
-      });
+        const parentY = entrance === "S" ? availableY : availableY + childH;
+        const childY = entrance === "S" ? availableY + parentH : availableY;
+
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: curX,
+          y: parentY,
+          w: roomW,
+          h: parentPin?.height || parentH,
+        });
+
+        placedRooms.push({
+          name: child.name,
+          type: child.type,
+          x: curX,
+          y: childY,
+          w: childPin?.width ? Math.min(childPin.width, roomW) : roomW,
+          h: childH,
+        });
+      } else {
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: curX,
+          y: availableY,
+          w: roomW,
+          h: parentPin?.height || availableL,
+        });
+      }
+      curX += sliceW;
     });
   } else {
-    const count = reqRooms.length;
-    let curX = 0;
-    reqRooms.forEach((r, idx) => {
+    let curY = availableY;
+    units.forEach((unit, idx) => {
       const isLast = idx === count - 1;
-      const sliceW = isLast ? W - curX : Math.floor(W / count);
-      const pin = pinnedMap[r.name];
-      placedRooms.push({
-        name: r.name,
-        type: r.type,
-        x: curX,
-        y: startY,
-        w: pin?.width || sliceW,
-        h: pin?.height || remainingL,
-      });
-      curX += sliceW;
+      const parentPin = pinnedMap[unit.parent.name];
+      const sliceH = isLast ? availableL - (curY - availableY) : Math.floor(availableL / count);
+      const roomH = parentPin?.height ? Math.min(parentPin.height, sliceH) : sliceH;
+
+      if (unit.children.length > 0) {
+        const child = unit.children[0];
+        const childPin = pinnedMap[child.name];
+        const childConfig = ROOM_SIZE_TABLE[child.type] || ROOM_SIZE_TABLE.bathroom;
+        let childW = childPin?.width || childConfig.preferred.w;
+        childW = Math.max(childConfig.min.w, Math.min(childConfig.max.w, childW));
+        const parentW = availableW - childW;
+
+        const parentX = entrance === "W" ? availableX : availableX + childW;
+        const childX = entrance === "W" ? availableX + parentW : availableX;
+
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: parentX,
+          y: curY,
+          w: parentPin?.width || parentW,
+          h: roomH,
+        });
+
+        placedRooms.push({
+          name: child.name,
+          type: child.type,
+          x: childX,
+          y: curY,
+          w: childW,
+          h: childPin?.height ? Math.min(childPin.height, roomH) : roomH,
+        });
+      } else {
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: availableX,
+          y: curY,
+          w: parentPin?.width || availableW,
+          h: roomH,
+        });
+      }
+      curY += sliceH;
     });
   }
 
@@ -276,18 +408,19 @@ function solveLivingHub(input, buildable, pinnedMap) {
   const L = buildable.length;
   const messages = [];
 
-  const livingReq =
-    input.rooms.find((r) => r.type === "living") || input.rooms[0];
+  const livingReq = input.rooms.find((r) => r.type === "living") || input.rooms[0];
   const otherRooms = input.rooms.filter((r) => r.name !== livingReq.name);
 
-  const livingH = Math.max(12, Math.floor(L * 0.45));
-  const entrance = getPhysicalEntranceSide(
-    input.entrance || "S",
-    input.north || "up",
-  );
-  const livingY = entrance === "S" ? 0 : L - livingH;
-  const otherY = entrance === "S" ? livingH : 0;
-  const otherH = L - livingH;
+  const livingConfig = ROOM_SIZE_TABLE.living;
+  const minLivingH = livingConfig.min.h;
+  const preferredLivingH = livingConfig.preferred.h;
+  const maxAvailableLivingH = Math.max(minLivingH, L - 10);
+  const targetLivingH = Math.min(maxAvailableLivingH, Math.max(minLivingH, Math.floor(L * 0.42) || preferredLivingH));
+
+  const entrance = getPhysicalEntranceSide(input.entrance || "S", input.north || "up");
+  const livingY = entrance === "S" ? 0 : L - targetLivingH;
+  const otherY = entrance === "S" ? targetLivingH : 0;
+  const otherH = L - targetLivingH;
 
   const placedRooms = [];
   const livingPin = pinnedMap[livingReq.name];
@@ -298,45 +431,133 @@ function solveLivingHub(input, buildable, pinnedMap) {
     x: 0,
     y: livingY,
     w: livingPin?.width || W,
-    h: livingPin?.height || livingH,
+    h: livingPin?.height || targetLivingH,
   });
 
-  const count = otherRooms.length;
-  let curX = 0;
+  const hallwayW = Math.max(3, Math.min(4, Math.floor(W * 0.12) || 4));
+  const leftWingW = Math.floor((W - hallwayW) / 2);
+  const rightWingW = W - hallwayW - leftWingW;
+  const hallwayX = leftWingW;
 
-  otherRooms.forEach((r, idx) => {
-    const isLast = idx === count - 1;
-    const pin = pinnedMap[r.name];
-    let roomW = isLast ? W - curX : Math.floor(W / count);
-
-    if (pin?.width) {
-      roomW = pin.width;
-    }
-
-    placedRooms.push({
-      name: r.name,
-      type: r.type,
-      x: curX,
+  const hallway_segments = [
+    {
+      id: "hallway_1",
+      x: hallwayX,
       y: otherY,
-      w: roomW,
-      h: pin?.height || otherH,
-    });
+      w: hallwayW,
+      h: otherH,
+    },
+  ];
 
-    curX += roomW;
+  const leftRooms = [];
+  const rightRooms = [];
+  const attachedByParent = new Map();
+
+  otherRooms.forEach((r) => {
+    if (r.attached_to) {
+      if (!attachedByParent.has(r.attached_to)) {
+        attachedByParent.set(r.attached_to, []);
+      }
+      attachedByParent.get(r.attached_to).push(r);
+    }
   });
 
-  const hallway_segments =
-    count > 3
-      ? [
-          {
-            id: "hallway_1",
-            x: Math.floor(W * 0.35),
-            y: otherY,
-            w: Math.max(3, Math.floor(W * 0.3)),
-            h: 3,
-          },
-        ]
-      : [];
+  const primaryOthers = otherRooms.filter((r) => !r.attached_to);
+
+  primaryOthers.forEach((r) => {
+    if (r.zone && (r.zone.includes("W") || r.zone === "NW" || r.zone === "SW")) {
+      leftRooms.push(r);
+    } else if (r.zone && (r.zone.includes("E") || r.zone === "NE" || r.zone === "SE")) {
+      rightRooms.push(r);
+    } else {
+      if (leftRooms.length <= rightRooms.length) {
+        leftRooms.push(r);
+      } else {
+        rightRooms.push(r);
+      }
+    }
+  });
+
+  function placeHubWing(wingRooms, startX, wingWidth) {
+    if (wingRooms.length === 0) return;
+
+    const units = wingRooms.map((parent) => ({
+      parent,
+      children: attachedByParent.get(parent.name) || [],
+    }));
+
+    const unitCount = units.length;
+    let remainingHeight = otherH;
+    let currentY = otherY;
+
+    units.forEach((unit, idx) => {
+      const isLast = idx === unitCount - 1;
+      const parentPin = pinnedMap[unit.parent.name];
+      const parentConfig = ROOM_SIZE_TABLE[unit.parent.type] || ROOM_SIZE_TABLE.bedroom;
+      const hasChildren = unit.children.length > 0;
+
+      let unitTotalH;
+      if (isLast) {
+        unitTotalH = remainingHeight;
+      } else {
+        const share = Math.round(remainingHeight / (unitCount - idx));
+        const needed = hasChildren ? parentConfig.min.h + 7 : parentConfig.min.h;
+        unitTotalH = Math.max(needed, share);
+      }
+
+      if (hasChildren) {
+        const child = unit.children[0];
+        const childPin = pinnedMap[child.name];
+        const childConfig = ROOM_SIZE_TABLE[child.type] || ROOM_SIZE_TABLE.bathroom;
+
+        let childH = childPin?.height || childConfig.preferred.h;
+        childH = Math.max(childConfig.min.h, Math.min(childConfig.max.h, childH));
+        const parentH = unitTotalH - childH;
+
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: startX,
+          y: currentY,
+          w: parentPin?.width ? Math.min(parentPin.width, wingWidth) : wingWidth,
+          h: parentPin?.height || parentH,
+        });
+
+        placedRooms.push({
+          name: child.name,
+          type: child.type,
+          x: startX,
+          y: currentY + parentH,
+          w: childPin?.width ? Math.min(childPin.width, wingWidth) : wingWidth,
+          h: childH,
+        });
+
+        const placedUnitH = parentH + childH;
+        remainingHeight -= placedUnitH;
+        currentY += placedUnitH;
+      } else {
+        let parentH = parentPin?.height || unitTotalH;
+        if (!parentPin?.height && isLast && remainingHeight > 0) {
+          parentH = remainingHeight;
+        }
+
+        placedRooms.push({
+          name: unit.parent.name,
+          type: unit.parent.type,
+          x: startX,
+          y: currentY,
+          w: parentPin?.width ? Math.min(parentPin.width, wingWidth) : wingWidth,
+          h: parentH,
+        });
+
+        remainingHeight -= parentH;
+        currentY += parentH;
+      }
+    });
+  }
+
+  placeHubWing(leftRooms, 0, leftWingW);
+  placeHubWing(rightRooms, hallwayX + hallwayW, rightWingW);
 
   return {
     archetype: "Living Hub & Direct Wings",
@@ -346,23 +567,13 @@ function solveLivingHub(input, buildable, pinnedMap) {
   };
 }
 
-function getPhysicalEntranceSide(entrance, north = "up") {
-  const mapping = {
-    up: { N: "N", S: "S", E: "E", W: "W" },
-    down: { N: "S", S: "N", E: "W", W: "E" },
-    left: { N: "W", S: "E", E: "N", W: "S" },
-    right: { N: "E", S: "W", E: "S", W: "N" },
-  };
-
-  return mapping[north]?.[entrance] || entrance;
-}
-
 export function solveFloorplan(input) {
   const feasibility = checkFeasibility(input.plot, input.setbacks, input.rooms);
 
   if (!feasibility.feasible) {
     return {
       success: false,
+      hasValidLayout: false,
       error: feasibility.message,
       feasibility,
       layouts: [],
@@ -416,11 +627,18 @@ export function solveFloorplan(input) {
       });
     });
 
+    const errorCount = problems.filter((p) => p.severity === "error").length;
+    const warningCount = problems.filter((p) => p.severity === "warning").length;
+    const isValid = errorCount === 0;
+
     return {
       id: `layout-${index + 1}`,
       variantNumber: index + 1,
       archetype: layout.archetype,
       score,
+      isValid,
+      errorCount,
+      warningCount,
       rooms: layout.rooms,
       hallway_segments: layout.hallway_segments,
       hallway: layout.hallway_segments?.[0] || null,
@@ -431,10 +649,18 @@ export function solveFloorplan(input) {
     };
   });
 
-  processedLayouts.sort((a, b) => a.score - b.score);
+  processedLayouts.sort((a, b) => {
+    if (a.isValid && !b.isValid) return -1;
+    if (!a.isValid && b.isValid) return 1;
+    if (a.errorCount !== b.errorCount) return a.errorCount - b.errorCount;
+    return a.score - b.score;
+  });
+
+  const hasValidLayout = processedLayouts.some((l) => l.isValid);
 
   return {
     success: true,
+    hasValidLayout,
     layouts: processedLayouts,
     feasibility,
     problems: processedLayouts[0]?.problems || [],

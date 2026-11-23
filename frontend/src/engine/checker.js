@@ -1,7 +1,5 @@
 import { ROOM_SIZE_TABLE, getBuildableArea } from "./contracts.js";
 
-// Calculate the length of a shared wall between two rectangles.
-// Corner contact and non-touching rectangles return 0.
 function sharedWallLength(a, b) {
   let best = 0;
 
@@ -16,8 +14,6 @@ function sharedWallLength(a, b) {
   return Math.max(best, 0);
 }
 
-// Build a graph containing rooms and hallway segments.
-// Two nodes are connected when they share at least 3 ft of wall.
 function buildConnectionGraph(nodes, doorMin = 3) {
   const graph = new Map(nodes.map((node) => [node.name, new Set()]));
 
@@ -33,7 +29,6 @@ function buildConnectionGraph(nodes, doorMin = 3) {
   return graph;
 }
 
-// Breadth-first search from a starting node.
 function reachableFrom(graph, start) {
   const seen = new Set([start]);
   const queue = [start];
@@ -84,6 +79,7 @@ export function checkLayout(layout, input, doors = []) {
       severity: "error",
     });
   }
+
   if (input.rooms && input.rooms.length > 10) {
     problems.push({
       code: "I1",
@@ -92,7 +88,19 @@ export function checkLayout(layout, input, doors = []) {
       severity: "error",
     });
   }
+
+  const seenInputNames = new Set();
   input.rooms?.forEach((r) => {
+    if (seenInputNames.has(r.name)) {
+      problems.push({
+        code: "I1",
+        message: `Duplicate room name '${r.name}' in input.`,
+        rooms: [r.name],
+        severity: "error",
+      });
+    }
+    seenInputNames.add(r.name);
+
     if (!ROOM_SIZE_TABLE[r.type]) {
       problems.push({
         code: "I1",
@@ -101,6 +109,38 @@ export function checkLayout(layout, input, doors = []) {
         severity: "error",
       });
     }
+
+    if (r.attached_to) {
+      const target = input.rooms?.find((candidate) => candidate.name === r.attached_to);
+      if (!target) {
+        problems.push({
+          code: "H6",
+          message: `Attached bathroom '${r.name}' references non-existent room '${r.attached_to}'.`,
+          rooms: [r.name],
+          severity: "error",
+        });
+      } else if (target.type !== "bedroom") {
+        problems.push({
+          code: "H6",
+          message: `Attached bathroom '${r.name}' is attached to '${r.attached_to}' which is not a bedroom (type: '${target.type}').`,
+          rooms: [r.name, r.attached_to],
+          severity: "error",
+        });
+      }
+    }
+  });
+
+  const layoutNames = new Set();
+  rooms.forEach((r) => {
+    if (layoutNames.has(r.name)) {
+      problems.push({
+        code: "H3",
+        message: `Duplicate room name '${r.name}' in layout.`,
+        rooms: [r.name],
+        severity: "error",
+      });
+    }
+    layoutNames.add(r.name);
   });
 
   rooms.forEach((r) => {
@@ -125,7 +165,6 @@ export function checkLayout(layout, input, doors = []) {
     }
   });
 
-  // H2: Room size limits, rotation, input overrides, and pinned dimensions.
   const inputRoomMap = new Map(
     (input.rooms || []).map((room) => [room.name, room]),
   );
@@ -181,7 +220,6 @@ export function checkLayout(layout, input, doors = []) {
     }
   });
 
-  // Check pinned room dimensions.
   (input.pins || []).forEach((pin) => {
     const room = roomMap.get(pin.room);
 
@@ -243,7 +281,6 @@ export function checkLayout(layout, input, doors = []) {
     }
   }
 
-  // H3: Check room-to-hallway overlap.
   rooms.forEach((r) => {
     hallwaySegments.forEach((seg) => {
       const overlapX = Math.max(
@@ -380,8 +417,6 @@ export function checkLayout(layout, input, doors = []) {
     }
   }
 
-  // HW3: Reject a hallway network containing a complete 5x5 ft square.
-  // H3: Check hallway-to-hallway overlap.
   for (let i = 0; i < hallwaySegments.length; i++) {
     for (let j = i + 1; j < hallwaySegments.length; j++) {
       const a = hallwaySegments[i];
@@ -463,7 +498,6 @@ export function checkLayout(layout, input, doors = []) {
     }
   }
 
-  // HW2: All hallway segments must form one connected group.
   if (hallwaySegments.length > 1) {
     const graph = hallwaySegments.map(() => new Set());
 
@@ -482,19 +516,18 @@ export function checkLayout(layout, input, doors = []) {
             ? Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
             : 0;
 
-        const sharedWallLength = Math.max(
+        const sharedWallLen = Math.max(
           verticalSharedWall,
           horizontalSharedWall,
         );
 
-        if (sharedWallLength >= 3) {
+        if (sharedWallLen >= 3) {
           graph[i].add(j);
           graph[j].add(i);
         }
       }
     }
 
-    // Traverse the hallway graph from the first segment.
     const visited = new Set([0]);
     const queue = [0];
 
@@ -524,7 +557,6 @@ export function checkLayout(layout, input, doors = []) {
     }
   }
 
-  // E1: The first requested living room must touch the entrance-side boundary.
   const entrance = input.entrance || "S";
   const north = input.north || "up";
 
@@ -556,9 +588,7 @@ export function checkLayout(layout, input, doors = []) {
   };
 
   const livingRoomName = input.rooms?.find((r) => r.type === "living")?.name;
-
   const livingRoom = rooms.find((r) => r.name === livingRoomName);
-
   const entranceEdge = entranceEdges[north]?.[entrance];
 
   if (livingRoom && entranceEdge) {
@@ -579,15 +609,12 @@ export function checkLayout(layout, input, doors = []) {
     }
   }
 
-  // Determine the entrance room:
-  // first requested living room, or first requested room if no living room exists.
   const entranceRoom =
     input.rooms?.find((room) => room.type === "living") || input.rooms?.[0];
 
   if (entranceRoom) {
     const entranceName = entranceRoom.name;
 
-    // F5: Every room and hallway must be reachable from the entrance.
     if (!connectionGraph.has(entranceName)) {
       problems.push({
         code: "F5",
@@ -610,15 +637,12 @@ export function checkLayout(layout, input, doors = []) {
           });
         });
 
-      // F1: A bedroom must not require walking through another bedroom.
       const reachableWithoutWalkingThroughBedrooms = new Set([entranceName]);
       const queue = [entranceName];
 
       for (let i = 0; i < queue.length; i++) {
         const current = queue[i];
 
-        // You may enter a bedroom, but cannot continue through it.
-        // The entrance room itself is exempt, matching P4.
         if (
           input.rooms?.some(
             (room) => room.name === current && room.type === "bedroom",

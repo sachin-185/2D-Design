@@ -95,7 +95,6 @@ export default function Canvas({
     }
 
     if (svgRef.current) {
-      // rect already includes pan and zoom; the viewBox then fits the drawing inside it, centred.
       const rect = svgRef.current.getBoundingClientRect();
       const fit = Math.min(rect.width / svgWidth, rect.height / svgHeight);
       const offsetX = rect.left + (rect.width - svgWidth * fit) / 2;
@@ -210,8 +209,6 @@ export default function Canvas({
         <svg
           ref={svgRef}
           className="cad-svg-sheet"
-          // The sheet fills the viewport box (CSS 100%); the viewBox scales the whole plot to fit it,
-          // so tall or wide plots are never cut off. Zoom 100% = whole plot visible.
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           preserveAspectRatio="xMidYMid meet"
           style={{
@@ -416,6 +413,14 @@ export default function Canvas({
                 color: "#38bdf8",
                 lightColor: "rgba(56, 189, 248, 0.12)",
               };
+              const roomProblem = layout?.problems?.find((p) => p.rooms?.includes(room.name));
+              const hasError = roomProblem?.severity === "error";
+              const hasWarning = roomProblem?.severity === "warning";
+              const isAttached = Boolean(input?.rooms?.find((r) => r.name === room.name)?.attached_to);
+              const roomStroke = isSelected
+                ? (hasError ? "#ef4444" : "#38bdf8")
+                : (hasError ? "#ef4444" : (hasWarning ? "#f59e0b" : config.color || "#475569"));
+              const roomStrokeWidth = isSelected ? 3.5 : (hasError ? 2.5 : 1.8);
 
               return (
                 <g
@@ -429,14 +434,28 @@ export default function Canvas({
                     y={ry}
                     width={rw}
                     height={rh}
-                    fill={config.lightColor || "rgba(56, 189, 248, 0.12)"}
-                    stroke={isSelected ? "#38bdf8" : config.color || "#475569"}
-                    strokeWidth={isSelected ? 3 : 1.8}
+                    fill={hasError ? "rgba(239, 68, 68, 0.15)" : (config.lightColor || "rgba(56, 189, 248, 0.12)")}
+                    stroke={roomStroke}
+                    strokeWidth={roomStrokeWidth}
+                    strokeDasharray={hasError && !isSelected ? "5 3" : undefined}
                     filter={isSelected ? "url(#glow-selected)" : undefined}
                   />
 
                   {showLabels && (
                     <g className="room-info-label" pointerEvents="none">
+                      {isAttached && (
+                        <text
+                          x={rx + rw / 2}
+                          y={ry + rh / 2 - 25}
+                          textAnchor="middle"
+                          fill="#06b6d4"
+                          fontSize="9"
+                          fontWeight="700"
+                          letterSpacing="0.8"
+                        >
+                          [ATTACHED ENSUITE]
+                        </text>
+                      )}
                       <text
                         x={rx + rw / 2}
                         y={ry + rh / 2 - 12}
@@ -462,12 +481,24 @@ export default function Canvas({
                         x={rx + rw / 2}
                         y={ry + rh / 2 + 20}
                         textAnchor="middle"
-                        fill={config.color}
+                        fill={hasError ? "#ef4444" : config.color}
                         fontSize="10"
                         fontWeight="600"
                       >
                         {formatArea(room.w * room.h)}
                       </text>
+                      {hasError && (
+                        <text
+                          x={rx + rw / 2}
+                          y={ry + rh / 2 + 33}
+                          textAnchor="middle"
+                          fill="#ef4444"
+                          fontSize="8.5"
+                          fontWeight="700"
+                        >
+                          ⚠ {roomProblem.code}
+                        </text>
+                      )}
                     </g>
                   )}
                 </g>
